@@ -1,6 +1,1 @@
-while read ip; do
-    curl -s 'http://www.geoiptool.com/en/?IP='$ip | \
-    awk -F '(</?[^>]+>)+' '/Host Name/,/Postal code/ {
-        if (/:/) {printf("%13s ", $2); getline; print $2}
-    } END {print}'
-done
+curl -L -s --max-time 10 http://checkip.dyndns.org | egrep -o -m 1 '([[:digit:]]{1,3}\.){3}[[:digit:]]{1,3}'
