@@ -1,0 +1,4 @@
+cd /Volumes/My\ Book/MY\ Music/
+find ./ -type d -print > ~/Documents/Music.txt
+u ~/Documents/Music.txt
+sort ~/Documents/Music.txt -o ~/Documents/Music.txt

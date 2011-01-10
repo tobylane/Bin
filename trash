@@ -1,0 +1,33 @@
+#!/bin/sh
+# trash
+
+# @author Shane Celis <shane (at) gnufoo (dot) org>
+
+if [ $# -eq 0 ]; then
+  echo "usage: trash <files...>" >&2
+  exit 2;
+fi
+
+for file in "$@"; do
+  # get just file name 
+  destfile="`basename $file`"
+  suffix='';
+  i=0;
+
+  # If that file already exists in the trash, change the name using
+  # the same convetion OS X does.
+
+  # blah
+  # blah copy
+  # blah copy 1
+  # etc...
+  while [ -e "$HOME/.Trash/${destfile}${suffix}" ]; do
+    if [ $i -eq 0 ]; then
+      suffix=" copy";
+    else
+      suffix=" copy $i";
+    fi
+    i=`expr $i + 1`
+  done
+  mv "$file" "$HOME/.Trash/${destfile}${suffix}"
+done

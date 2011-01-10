@@ -1,0 +1,34 @@
+MOD_TIME_EPOCH=`stat -f %m $1`
+MOD_TIME_FMT=`date -r $MOD_TIME_EPOCH +'%a %e %b %Y @ %R %Z' | sed 's/ [ ]*/ /g'`
+
+if [ $# -ge 3 ] ; then echo 'hi'; else echo 'bye'; fi; exit
+
+FULL_NAME=`php -r "echo realpath('$1');"`
+mkdir -p $HOME/.enscript
+cat > $HOME/.enscript/tmp_txt2pdf.hdr <<EOF
+% -- code follows this line --
+%Format: last_mod_timestr $MOD_TIME_FMT
+%Format: pagestr page \$V$%/$=
+%HeaderHeight: 30
+%FooterHeight: 30
+/Helvetica /helvetica-encoded MF
+/Helvetica-10-Regular /helvetica-encoded findfont 10 scalefont def
+/Helvetica-Bold /helvetica-bold-encoded MF
+/Helvetica-10-Bold   /helvetica-bold-encoded findfont 10 scalefont def
+/new_marg 4 def
+/do_header {
+  gsave
+    Helvetica-10-Bold setfont
+    d_footer_x d_footer_w add pagestr stringwidth pop sub
+    new_marg sub
+    d_footer_y 7 add moveto pagestr show
+    Helvetica-10-Bold setfont
+    d_footer_x new_marg add d_footer_y 7 add moveto last_mod_timestr show
+    Helvetica-10-Bold setfont
+    d_header_x d_header_w 2 div add fname stringwidth pop 2 div sub
+    d_header_y 16 add moveto fname show
+  grestore
+} def
+EOF
+enscript --fancy-header=tmp_txt2pdf --word-wrap -p - "$FULL_NAME" | pstopdf -i -o "$2"
+rm -f $HOME/.enscript/tmp_txt2pdf.hdr

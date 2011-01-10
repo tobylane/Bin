@@ -1,0 +1,6 @@
+while read ip; do
+    curl -s 'http://www.geoiptool.com/en/?IP='$ip | \
+    awk -F '(</?[^>]+>)+' '/Host Name/,/Postal code/ {
+        if (/:/) {printf("%13s ", $2); getline; print $2}
+    } END {print}'
+done

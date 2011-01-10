@@ -1,0 +1,4 @@
+cd /Volumes/My\ Book/Films/
+ls -R | sed -e 's/\.[a-zA-Z0-9]*$//' > ~/Documents/Films.txt
+u ~/Documents/Films.txt
+open ~/Documents/Films2.txt
