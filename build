@@ -1,0 +1,11 @@
+myfp=`which $0`
+mydir=`dirname $myfp`
+cd $mydir
+svn up
+echo -n SVN: $(svnversion .) >> log.txt 
+/Applications/CMake.app/Contents/bin/cmake -G Xcode
+cd CorsixTH
+xcodebuild -configuration Release -sdk macosx10.6
+echo -n  Build completed at  >> ../log.txt
+date >> ../log.txt
+mv -f Release/CorsixTH CorsixTH

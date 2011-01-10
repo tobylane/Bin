@@ -11,4 +11,7 @@ z - "maintains a jump-list of the directories you actually use"
 timelapse - "make time lapse video"
 githack and gitship - http://reinh.com/blog/2008/08/27/hack-and-and-ship.html
 icalbuddy - http://hasseg.org/icalBuddy/ Use as ./icalbuddy eventsToday+5
+build - My build script for Corsixth
+clean - My cleaning/publishing clean for Corsixth (may need to be updated for the app)
+make - My transmission build scipt.
 
