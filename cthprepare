@@ -1,0 +1,42 @@
+#!/bin/bash
+set -ea
+# Creates environment for compiling CorsixTH.
+# Recommended to run in ~/Downloads/ or wherever the git repo folder already is.
+# User should first install XCode and command line utilities (app store).
+
+lua=lua53 # lua51 lua lua53 for 5.1 5.2 5.3
+
+if [ ! -f /usr/local/bin/brew ] # You could change this to your package manager or remove it
+then 
+	ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+else echo "Homebrew already installed"
+fi
+
+if [ ! -f /usr/local/bin/lua ] # 
+then 
+	brew install $lua ffmpeg freetype sdl2 sdl2_mixer
+	luarocks-$lua install lpeg
+	luarocks-$lua install luafilesystem
+else echo "Dependencies already installed"
+fi
+cd ~/Downloads
+if [ ! -d CorsixTH/.git/ ]
+then 
+	mkdir -p CorsixTH
+	git clone --depth=1 https://github.com/CorsixTH/CorsixTH || true
+	# This has no history, to download it all use 'git fetch --unshallow'
+else echo "Git repo already exists"
+fi
+
+cd CorsixTH
+# Comment out the following line if you have CMake already
+curl -fLS https://cmake.org/files/v3.4/cmake-3.4.0-rc3-Darwin-x86_64.tar.gz | tar --strip-components=1 -xz
+curl -fLS https://raw.githubusercontent.com/tobylane/Bin/master/cthupdate
+curl -fLS https://raw.githubusercontent.com/tobylane/Bin/master/cthpackage
+chmode a+x cthupdate cthpackage
+
+if [ ! -z ${1+x} ] # If any parameter is given don't run the update/build script
+then 
+cthupdate doall
+else echo "Prepared. run cthupdate doall to force a full build then cthupdate any time after
+fi

@@ -1,0 +1,11 @@
+#!/bin/bash
+set -ea
+# Package up necessary files into a ~5mb zip. todo: create dmg
+
+git log --name-status -- HEAD^..HEAD
+folder=CorsixTH-mac-$(git rev-parse --short HEAD)
+mkdir -p ../$folder
+cp -Rf CorsixTH/CorsixTH.app CorsixTH/Lua CorsixTH/Bitmap CorsixTH/Campaigns CorsixTH/Levels CorsixTH/CorsixTH.lua README.txt LICENSE.txt CONTRIBUTING.txt ../$folder/
+cd ../
+zip -qro9 $folder $folder/
+# rm -rf $folder/
