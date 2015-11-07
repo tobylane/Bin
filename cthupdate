@@ -3,34 +3,42 @@ set -ea
 # Script to pull from github all updates, if any cmake then rerun cmake and xcode, if any c++ then rerun xcode,
 # else the lua/bitmap/etc updates are in, saving the previous app
 # brew update && brew upgrade # A good idea every so often, brew outdated to see what upgrade will do
+# Usage: cthupdate [ build [ package ] ]
 lua=5.3 # 5.1 5.2 5.3
-changelog=1 # 0 1
+changelog=0 # 0 1
 
 old=$(git rev-parse HEAD)
 
-if [[ $(git pull) == "Already up-to-date." ]] && [[ $1 != "doall" ]]
+if [[ $(git pull) == "Already up-to-date." ]] && [[ $1 != "build" ]]
 then
 	echo "No new changes"
 	exit 0
 fi
 
-if [[ $(git diff --name-only -- $old HEAD) == *.cmake* ]] || [[ $1 == 'doall' ]]
+if [[ $(git diff --name-only -- $old HEAD) == *.cmake* ]] || [[ $1 == 'build' ]]
 then
 	# Adjust this path if CMake is elsewhere, eg /Applications/CMake.app/Contents/bin/cmake
-	CMake.app/Contents/bin/cmake . -G Xcode -DCMAKE_CXX_FLAGS="" -DCMAKE_OSX_DEPLOYMENT_TARGET= \
+	~/Applications/CMake.app/Contents/bin/cmake . -G Xcode  \
 	 -DLUA_PROGRAM_PATH=$(which lua"$lua") -DLUA_INCLUDE_DIR=/usr/local/include/lua"$lua"/ -DLUA_LIBRARY=/usr/local/lib/liblua."$lua".dylib
 fi
 
-if [[ $(git diff --name-only -- $old HEAD) =~ (.cmake|Src) ]] || [[ $1 == 'doall' ]]
+if [[ $(git diff --name-only -- $old HEAD) =~ (.cmake|Src) ]] || [[ $1 == 'build' ]]
 then
 	cd CorsixTH/
-	mv -f CorsixTH.app CorsixTH-$(git rev-parse --short HEAD).app || true
-	xcodebuild -configuration Release
-	cp -R Release/Corsixth.app .
+	rm -rf CorsixTH-$(git rev-parse --short $old)/
+	rsync -a -W CorsixTH.app CorsixTH-$(git rev-parse --short HEAD).app || true
+	xcodebuild -configuration Release > /dev/null
+	rsync -a Release/CorsixTH.app .
+	cd ../
 fi
 
 echo "Updated to $(git rev-parse --short HEAD)"
 if [ $changelog=1 ] 
 then
 	git log --no-merges --pretty=format:'%s by %an %ar' $old..HEAD
+fi
+
+if [[ $2 = package ]]
+then
+	./cthpackage $3
 fi

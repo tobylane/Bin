@@ -1,6 +1,7 @@
 #!/bin/bash
 set -ea
 # Package up necessary files into a ~5mb zip. todo: create dmg
+# Usage : cthpackage
 
 git log --name-status -- HEAD^..HEAD
 folder=CorsixTH-mac-$(git rev-parse --short HEAD)
@@ -9,3 +10,4 @@ cp -Rf CorsixTH/CorsixTH.app CorsixTH/Lua CorsixTH/Bitmap CorsixTH/Campaigns Cor
 cd ../
 zip -qro9 $folder $folder/
 # rm -rf $folder/
+# curl to transfer.sh
