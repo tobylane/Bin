@@ -1,13 +1,32 @@
 #!/bin/bash
 set -ea
-# Package up necessary files into a ~5mb zip. todo: create dmg
-# Usage : cthpackage
+# Package up necessary files into given format - (default) xz = 1.5mb, zip = 2.3mb, folder = 7.8mb, dmg = 2.8mb
+# Plus dependencies of ~15mb to be included. xz total of 6.8mb
+# Usage : cthpackage [ xz | zip | folder | dmg ] [ upload ]
 
-git log --name-status -- HEAD^..HEAD
-folder=CorsixTH-mac-$(git rev-parse --short HEAD)
-mkdir -p ../$folder
-cp -Rf CorsixTH/CorsixTH.app CorsixTH/Lua CorsixTH/Bitmap CorsixTH/Campaigns CorsixTH/Levels CorsixTH/CorsixTH.lua README.txt LICENSE.txt CONTRIBUTING.txt ../$folder/
+folder=CorsixTH-mac-$(git rev-parse --short HEAD).app
+rsync -a CorsixTH/CorsixTH.app/. ../$folder/
 cd ../
-zip -qro9 $folder $folder/
-# rm -rf $folder/
-# curl to transfer.sh
+
+if [[ $1 == 'xz' ]] || [[ $1 == '' ]]
+then
+	file="$folder.tar.xz"
+	XZ_OPT=-7 tar cJf $file $folder/
+elif [[ $1 == 'zip' ]]
+then
+	file="$folder.zip"
+	zip -qro9 $file $folder
+elif [[ $1 == 'dmg' ]]
+then
+	file="$folder.dmg"
+	hdiutil create -ov -format UDBZ -srcfolder $folder -o $file
+	# todo: use 0.40 release as a base or recreate like it. Artwork will increase filesize
+else
+	file="$folder"
+fi
+
+if [[ $2 == 'upload' ]] && [[ $1 != "folder" ]]
+then
+	curl --progress-bar --upload-file $file https://transfer.sh/$file | pbcopy
+fi
+# rm -rf $folder $file
