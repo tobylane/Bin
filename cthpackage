@@ -2,10 +2,14 @@
 set -ea
 # Package up necessary files into given format - (default) xz = 1.5mb, zip = 2.3mb, folder = 7.8mb, dmg = 2.8mb
 # Plus dependencies of ~15mb to be included. xz total of 6.8mb
-# Usage : cthpackage [ xz | zip | folder | dmg ] [ upload ]
+# Usage: cthpackage [ xz | zip | folder | dmg ] [ release ] [ upload ]
 
 folder=CorsixTH-mac-$(git rev-parse --short HEAD).app
-rsync -a CorsixTH/CorsixTH.app/. ../$folder/
+if [[ $2 == 'release' ]] && git describe --tags --contains HEAD@{1} > /dev/null 2>&1
+	then folder=CorsixTH-mac-$(git describe --tags --contains HEAD@{1}).app
+fi
+
+rsync -a CorsixTH.app/. ../$folder/
 cd ../
 
 if [[ $1 == 'xz' ]] || [[ $1 == '' ]]
@@ -25,8 +29,9 @@ else
 	file="$folder"
 fi
 
-if [[ $2 == 'upload' ]] && [[ $1 != "folder" ]]
+if [[ $2 == 'upload' || $3 == 'upload' ]] && [[ $1 != "folder" ]]
 then
 	curl --progress-bar --upload-file $file https://transfer.sh/$file | pbcopy
 fi
-# rm -rf $folder $file
+
+if [[ $1 != "folder" ]]; then openssl dgst -sha256 $file | tee $file.sha256 && rm -rf $folder; fi
