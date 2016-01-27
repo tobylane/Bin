@@ -1,0 +1,37 @@
+#!/bin/bash
+set -a
+# Announces build state via Anybar's coloured dot in the menu bar
+# Usage: Run manually or on schedule with launchctl
+
+open -a Anybar.app
+function anybar { echo -n $1 | nc -4u -w0 localhost ${2:-1738}; }
+#cd $HOME/Downloads/CorsixTH/ # May be needed for launchctl if WorkingDirectory doesn't work
+cthupdate="./cthupdate"
+output=$($cthupdate "$@")
+err=$?
+anybar question # In progress
+
+if [[ $output = 'No new changes' ]]
+then anybar purple # No changes
+
+elif ! [[ $(git diff --name-only HEAD@{1} HEAD) =~ (.cmake|Src|.txt) ]]
+then anybar blue # Lua changes only
+
+elif [[ $err != 0 ]]
+then # Git/cmake/xcode/bash failed, narrow it down
+	if   ! git pull; then anybar yellow
+	elif ! cthupdate cmake; then anybar orange
+	elif ! cthupdate xcode; then anybar red
+	else anybar black
+	fi
+
+elif [[ $err == 0 ]]
+then anybar green # Successful new build
+	if git describe --tags --contains HEAD@{1} > /dev/null 2>&1
+		then anybar cyan # Release
+	fi
+
+else
+	echo "error was not 0 and not not 0"
+	anybar exclamation
+fi
