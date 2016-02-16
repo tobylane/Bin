@@ -2,26 +2,27 @@
 set -ea
 # Creates environment for compiling CorsixTH.
 # Recommended to run in ~/Downloads/ or wherever the git repo folder already is.
-# User must first install XCode and command line utilities (app store).
+# User must first install Xcode and command line utilities (app store).
 # Xz, alerter and anybar are not required for CorsixTH and are not checked for.
 # Expected to work with OS X 10.9+ as-is, with 10.7-8 with certain changes.
 # Usage: cthprepare [ clean | build [ package [ xz | zip | folder | dmg ] [ upload ] ] ]
 
-lua=lua53 # lua51 lua lua53 for 5.1 5.2 5.3
+lua=lua5.3 # lua5.1 lua lua5.3 for 5.1 5.2 5.3
 
 if type brew > /dev/null 2>&1 # Adapt or remove this for other package managers
 then echo "Homebrew already installed"
 else ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 fi
  
-if type $(echo $lua | sed 's/.\{4\}/&./') > /dev/null 2>&1 # Adapt this if these dependancies are not in typical, assumed locations.
+if type $lua > /dev/null 2>&1 # Adapt this if these dependancies are not in typical, assumed locations.
 then echo "Dependencies already installed"
 else
-	brew install $lua ffmpeg freetype sdl2 sdl2_mixer xz
+	brew install $(echo $lua | sed 's/\.//') ffmpeg freetype sdl2 sdl2_mixer xz
 	brew cask install anybar
-	luarocks-$lua install lpeg
-	luarocks-$lua install luafilesystem
-	#luarocks-$lua install luasocket # Only needed for releases, doesn't work with lua 5.2-3
+	lrx=luarocks-${lua:3:3}
+	$lrx install lpeg
+	$lrx install luafilesystem
+	$lrx install luasocket # Only useful for releases, doesn't work with lua 5.2-3
 fi
 
 if [ -d CorsixTH/.git/ ]
@@ -29,10 +30,10 @@ then echo "Git repo already exists"
 else
 	git clone --depth=1 https://github.com/CorsixTH/CorsixTH || true
 	# This has no history, to download it all use 'git fetch --unshallow'
-	mkdir -p CorsixTH/build
+	mkdir -p CorsixTH/build_files && mkdir -p CorsixTH/build/CorsixTH
 fi
 
-cd CorsixTH
+cd CorsixTH/build_files # The build files folder is git ignored, so these scripts won't be in git status
 curl -fLSO https://raw.githubusercontent.com/tobylane/Bin/master/cthupdate
 curl -fLSO https://raw.githubusercontent.com/tobylane/Bin/master/cthpackage
 curl -fLSO https://raw.githubusercontent.com/tobylane/Bin/master/cthanybar
@@ -46,12 +47,12 @@ chmod +x cthupdate cthpackage cthanybar cthnotify alerter
 
 if    [ -d CMake.app ] 
 	then echo "CMake is already in place."
-elif  [ -d ../CMake.app ]
-	then mv ../CMake.app .
- 		 echo "CMake has been put in the CorsixTH folder."
+elif  [ -d ../../CMake.app ]
+	then mv ../../CMake.app .
+ 		 echo "CMake has been put in the build files folder."
 elif [ -d /Applications/CMake.app ] || [ -d ~/Applications/CMake.app ]
-	then echo "You have CMake in your applications folder. Adjust the path in the update script or move the app to this folder."
-elif grep -q 'alias cmake=' ~/.bash_profile || [[ $(type cmake) = "cmake is *" ]]
+	then echo "You have CMake in an applications folder. Adjust the path in the update script or move the app to this folder."
+elif grep -q 'alias cmake=' ~/.bash_profile || type cmake > /dev/null 2>&1
 	then echo "Cmake is in your \$PATH or aliases. Adjust the update script to use this."
 else 
 	curl -fLS https://cmake.org/files/v3.4/cmake-3.4.0-rc3-Darwin-x86_64.tar.gz | tar --strip-components=1 -xz
@@ -59,6 +60,6 @@ else
 fi
 
 if [ ! -z ${1+x} ] # If any parameter is given run the update/build script, pass on second parameter for package
-then ./cthupdate build ${@:2} # cthnotify or cthanybar can be used as a wrapper of cthupdate
+then build_files/cthupdate build ${@:2} # cthnotify or cthanybar can be used as a wrapper of cthupdate
 else echo "Prepared. Run cthupdate, with optional paramater build to force a build, and also package to create the archive"
 fi

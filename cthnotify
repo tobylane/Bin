@@ -12,7 +12,7 @@ options="-dropdownLabel Action -title CorsixTH Update -group cth -appIcon Corsix
 if [[ $output == 'No new changes' ]]
 	then action=$(echo "No new changes, at $(git rev-parse --short HEAD)" | ./alerter -subtitle "Git status" -actions "Re-run,Open,Github" $options)
 
-elif [[ $err == 127 ]]; then echo "Please run from the same folder as cthupdate or adapt this script"; fi
+elif [[ $err == 127 ]]; then echo "Please run from the same folder as cthupdate or adapt this script"
 
 elif [[ $err != 0 ]]
 then if  ! git pull; 		then action=$(echo "A problem occurred in git"   | ./alerter -subtitle "Error" -actions "Re-run,Open in Finder,Github" $options)
