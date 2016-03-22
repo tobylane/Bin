@@ -1,27 +1,29 @@
 #!/bin/bash
 set -a
+[ -n "$CTH_VERBOSE" ] && set -x
 # Announces build state with OS X Notifications via alerter
+# Copyright 2016- tobylane. Licensed under the MIT licence found in LICENSE.txt or online
 # Usage: Run manually or on schedule with launchctl/etc
 
-#cd $HOME/Downloads/CorsixTH/ # May be needed for launchctl if WorkingDirectory doesn't work
+#cd $HOME/Downloads/CorsixTH/build_files # May be needed for launchctl if WorkingDirectory doesn't work
 output=$(./cthupdate "$@")
 err=$?
 ./alerter -remove cth > /dev/null
 options="-dropdownLabel Action -title CorsixTH Update -group cth -appIcon CorsixTH/Icon.icns"
 
-if [[ $output == 'No new changes' ]]
+if [ "$output" = 'No new changes' ]
 	then action=$(echo "No new changes, at $(git rev-parse --short HEAD)" | ./alerter -subtitle "Git status" -actions "Re-run,Open,Github" $options)
 
-elif [[ $err == 127 ]]; then echo "Please run from the same folder as cthupdate or adapt this script"
+elif [ "$err" = "127" ]; then echo "Please run from the same folder as cthupdate or adapt this script"
 
-elif [[ $err != 0 ]]
-then if  ! git pull; 		then action=$(echo "A problem occurred in git"   | ./alerter -subtitle "Error" -actions "Re-run,Open in Finder,Github" $options)
-	elif ! cthupdate cmake; then action=$(echo "A problem occurred in CMake" | ./alerter -subtitle "Error" -actions "Re-run,Open in Finder,Github" $options)
-	elif ! cthupdate xcode; then action=$(echo "A problem occurred in Xcode" | ./alerter -subtitle "Error" -actions "Re-run,Open in Finder,Github" $options)
+elif [ "$err" != "0" ]
+then if  ! git pull;		  then action=$(echo "A problem occurred in git"   | ./alerter -subtitle "Error" -actions "Re-run,Open in Finder,Github" $options)
+	elif ! ./cthupdate cmake; then action=$(echo "A problem occurred in CMake" | ./alerter -subtitle "Error" -actions "Re-run,Open in Finder,Github" $options)
+	elif ! ./cthupdate xcode; then action=$(echo "A problem occurred in Xcode" | ./alerter -subtitle "Error" -actions "Re-run,Open in Finder,Github" $options)
 	else action=$(echo "A problem occurred in an unknown area" | ./alerter -subtitle "Error" -actions "Re-run,Open in Finder,Github" $options)
 	fi
 
-elif [[ $err == 0 ]]
+elif [ "$err" = "0" ]
 then action=$(git log -1 --pretty=%B --no-merges | ./alerter -subtitle "Successful build. Commit $(git rev-parse --short HEAD)" -actions "Open,Commit details,Github" $options)
 	if git describe --tags --contains HEAD@{1} > /dev/null 2>&1
 		then action=$(git describe --tags --contains HEAD@{1} | ./alerter -subtitle "Release $(git describe --tags --contains HEAD@{1})" -actions "Open,Read changelog,Github" $options -group cthrelease)
@@ -35,10 +37,10 @@ fi
 case $action in
 	@CONTENTCLICKED) echo "Dismissed" ;;
 	@CLOSED) echo "Dismissed" ;;
-	Re-run) ./cthnotify ;;
-	Open) open -a CorsixTH.app ;;
-	"Open in Finder") open . ;;
-	"Commit details") git log -n1 --color --no-merges ;;
-	"Read changelog") open CorsixTH/changelog.txt ;;
+	Re-run) ./cthnotify "$@" ;;
+	Open) open -a CorsixTH.app ;; # This can open a different, probably older, app.
+	"Open in Finder") open $(git rev-parse --show-toplevel) ;;
+	"Commit details") git log -n1 --color --no-merges --stat --date=local ;;
+	"Read changelog") open $(git rev-parse --show-toplevel)/CorsixTH/changelog.txt ;;
 	Github) open https://github.com/CorsixTH/CorsixTH ;;
 esac
