@@ -1,80 +1,75 @@
 #!/bin/bash
 set -ea
-[ -n "$CTH_VERBOSE" ] && set -x
-# Script to pull from github all updates, if any cmake then rerun cmake and xcode, if any c++ then rerun xcode.
-# Otherwise the lua files are copied into the latest app, and the app named after the commit ref is rotated.
+[ "$CTH_VERBOSE" ] || [ "$CI" ] && set -x
+# Pull the latest changes, if any cmake then run cmake and make, if any c++ then run make.
+# Otherwise the lua files are copied into the latest app.
 # brew update && brew upgrade # A good idea every so often, brew outdated to see what upgrade will do
 # Copyright 2016- tobylane. Licensed under the MIT licence found in LICENSE.txt or online
-# Usage: cthupdate [ clean | build [ package [ xz | zip | folder | dmg ] [ upload ] ] ]
-
-lua=5.3 # 5.1 5.2 5.3
-changelog=1 # 0 1
+# Usage: cthupdate [ clean | build | cmake | make | animview [ package [ xz | zip | folder | dmg ] [ release | upload ] ] ]
+lua=5.3 # 5.1 5.3 for lua5.1 lua5.3
+gitlog=2 # Length of git log, 0 is acceptable
 dir="$(brew --prefix)" # Adjust for your package manager or manual install
+cmake="build_files/CMake.app/Contents/bin/cmake" # Change build_files to Applications, etc. Or just cmake if its available
 
 if [ "$(basename "$(pwd)")" = "build_files" ]; then cd ..; fi
+cd "$(git rev-parse --show-toplevel)"
 
 # If the git repository is a fork and you want to build the latest upstream version
-# git checkout upstream && git pull --ff-only
+# git fetch upstream && git checkout upstream/master > /dev/null 2>&1
 
 if [ "$1" = "clean" ]
 	then rm -rf build && mkdir -p build/CorsixTH && echo "Cleaned" && exit 0
 fi
-if [ "$1" != "build" ] && [ "$1" != "cmake" ] && [ "$1" != "xcode" ] && [ "$1" != "animview" ] && \
- [ $(curl -sS -H "If-None-Match: \"$(git rev-parse HEAD)\"" -H "Accept: application/vnd.github.chitauri-preview+sha" \
- "https://api.github.com/repos/CorsixTH/CorsixTH/commits/master" -o /dev/null -m 3 -w "%{http_code}") != "304" ] \
- && [ "$(git pull)" = "Already up-to-date." ]
+if [ "$1" != "build" ] && [ "$1" != "cmake" ] && [ "$1" != "make" ] && [ "$1" != "animview" ] && \
+   [ "$(curl -sS -H "If-None-Match: $(git rev-parse HEAD)" -H 'Accept: application/vnd.github.v3.sha' \
+'http://api.github.com/repos/CorsixTH/CorsixTH/commits/master' -o /dev/null -m 3 -w '%{http_code}')" != "304" ] \
+   && [ "$(git pull --ff-only)" = "Already up-to-date." ]
 then
-	echo "No new changes"
-	exit 0
+	if [ "$?" = "128" ]; then echo "Git couldn't pull cleanly."; exit 128
+	else echo "No new changes."; exit 0
+	fi
 fi
 
-diff=$(git diff --name-only HEAD@{1} HEAD | tr ' ' '\n')
+diff=$(git diff --name-only 'HEAD@{1}' HEAD || git diff --name-only HEAD^ HEAD | tr ' ' '\n')
 if [ "$1" = "build" ] || [ "$1" = "cmake" ] || echo "$diff" | grep -qi -e cmake
-then # Adjust this path if CMake is elsewhere, eg /Applications/CMake.app/Contents/bin/cmake
-	build_files/CMake.app/Contents/bin/cmake . -G Xcode -Bbuild -DBUILD_ANIMVIEWER=OFF -DLUA_PROGRAM_PATH="$dir"/bin/lua$lua \
-	 -DLUA_INCLUDE_DIR="$dir"/include/lua$lua/ -DLUA_LIBRARY="$dir"/lib/liblua.$lua$(if [ $lua ]; then echo .;fi)dylib -Wno-dev
+then
+	 "$cmake" . -G"Unix Makefiles" -Bbuild -Wno-dev -DUSE_SOURCE_DATADIRS=OFF \
+	  -DLUA_PROGRAM_PATH="$dir/bin/lua$lua" -DLUA_INCLUDE_DIR="$dir/include/lua$lua/" \
+	  -DLUA_LIBRARY="$dir/lib/liblua.$lua.dylib" -DCMAKE_INSTALL_PREFIX=/Applications
 fi
 
-if [ "$1" = "build" ] || [ "$1" = "xcode" ] || echo "$diff" | grep -qi -e cmake -e Src
+if [ "$1" = "build" ] || [ "$1" = "make" ] || echo "$diff" | grep -qi -e cmake -e Src
 then
-	cd build/CorsixTH/
-	xcodebuild -configuration Release > /dev/null # xctool -configuration Release -scheme CorsixTH
-	cd ../../
-	rm -rf CorsixTH-*.app/
-	mv CorsixTH.app/ CorsixTH-$(git rev-parse --short HEAD@{1}).app/ > /dev/null 2>&1 || true
-	mv build/CorsixTH/Release/CorsixTH.app . > /dev/null 2>&1 || true
+	"$cmake" --build build/CorsixTH/ --target -- --always-make install #2>/dev/null
+	echo "build"
 
-elif [ "$1" = "build" ] || [ "$1" = "xcode" ] || echo "$diff" | grep -qi -e .lua
+elif echo "$diff" | grep -qi -e CorsixTH/CorsixTH -e .txt
 then
-	rm -rf CorsixTH-*.app/
-	cp -R CorsixTH.app/ CorsixTH-$(git rev-parse --short HEAD@{1}).app/ > /dev/null 2>&1 || true
-	rsync -a --include-from=CorsixTH/RequiredResources.txt CorsixTH/ CorsixTH.app/Contents/MacOS/ || true
+	cd CorsixTH
+	rsync -a CorsixTH.lua Lua Levels Campaigns Graphics /Applications/CorsixTH.app/Contents/Resources/
+	rsync -a Bitmap/aux_ui.* Bitmap/tree_ctrl.* Bitmap/mainmenu1080.dat Bitmap/mainmenu1080.pal \
+		/Applications/CorsixTH.app/Contents/Resources/Bitmap/
+
+else echo "Nothing to do."
 fi
 
 if [ "$1" = "animview" ] || echo "$diff" | grep -qi -e AnimView -e AnimationViewer
 then
-	build_files/CMake.app/Contents/bin/cmake . -G Xcode -Bbuild -Wno-dev \
-	-DBUILD_ANIMVIEWER=ON -DwxWidgets_CONFIG_EXECUTABLE=/usr/local/bin/wx-config
-	cd build/AnimView/
-	xcodebuild -configuration Release > /dev/null # xctool -configuration Release -scheme AnimView
-	cd ../../
-	rm -rf AnimView-*.app/
-	mv AnimView.app/ AnimView-$(git rev-parse --short HEAD@{1}).app/ > /dev/null 2>&1 || true
-	mv build/AnimView/Release/AnimView.app . > /dev/null 2>&1 || true
+	"$cmake" . -G"Unix Makefiles" -Bbuild -Wno-dev -DBUILD_ANIMVIEWER=ON -DCMAKE_INSTALL_PREFIX=/Applications
+	"$cmake" --build build/AnimView/ --target -- --always-make install #2>/dev/null
 fi
 
-rsync -a README.txt LICENSE.txt CONTRIBUTING.txt CorsixTH/changelog.txt CorsixTH.app/ || true
+rsync -a README.txt CONTRIBUTING.txt changelog.txt /Applications/CorsixTH.app/ || true
 
-if git describe --tags --contains HEAD@{1} > /dev/null 2>&1 # Release or release candidate
-	then open -gt CorsixTH/changelog.txt
-elif [ "$changelog" = "1" ] # Change this V number for a longer maximum list of commits
-	then git --no-pager log --no-merges -n10 --oneline --color HEAD@{1}..HEAD
-else
-	git log --oneline -n1 --color --pretty=format:"Updated to "%h
+if git describe --tags --contains 'HEAD@{1}' > /dev/null 2>&1 # Release or release candidate
+	then open -gt changelog.txt
 fi
+# Remove the single quoted section if you want to see changes pulled before today
+git --no-pager log --no-merges -${gitlog:-1} --oneline --decorate --graph 'HEAD@{1}..HEAD' \
+  || git log --oneline -1 --no-merges
 
-# git checkout - # To return to the previous branch, to be used with line 17
+# git checkout - > /dev/null 2>&1 # To return to the previous branch, to be used with line 17
 
 if [ "$2" = "package" ]
-	then build_files/cthpackage ${@:3}
+	then build_files/cthpackage "${@:3}"
 fi

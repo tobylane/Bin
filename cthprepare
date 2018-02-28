@@ -1,78 +1,72 @@
 #!/bin/bash
 set -ea
-[ -n "$CTH_VERBOSE" ] && set -x
-# Creates environment for compiling CorsixTH.
-# Recommended to run in ~/Downloads/ or where the git repository folder is.
-# User must first install Xcode and command line utilities (app store).
-# Xz, xctool, wxwidgets, alerter and anybar are not required for CorsixTH and are not checked for.
-# Expected to work with OS X 10.9+ as-is, with 10.7-8 with changes noted on the CorsixTH wiki.
+[ "$CTH_VERBOSE" ] || [ "$CI" ] && set -x
+# Creates environment for compiling CorsixTH. Recommended to run in ~/Downloads/ or where the git repository folder is.
+# Xz, wxwidgets, doxygen, alerter and anybar are not required for CorsixTH and are not checked for.
+# Expected to work with OS X 10.11+ (requirement raised due to SDL's libmodplug). Tested on 10.13.
 # Copyright 2016- tobylane. Licensed under the MIT licence found in LICENSE.txt or online
-# Usage: cthprepare [ clean | build [ package [ xz | zip | folder | dmg ] [ upload ] ] ]
+# Usage: cthprepare [ clean | build | cmake | make | animview [ package [ xz | zip | folder | dmg ] [ release | upload ] ] ]
 
-lua=lua5.3 # lua5.1 lua lua5.3 for 5.1 5.2 5.3
+lua=5.3 # 5.1 5.3 for lua5.1 lua5.3 (lua 5.2 not avaliable in homebrew, both or luajit not recommended)
 dir="$(brew --prefix)" # Adjust for your package manager or manual install
+rocksdir="$dir/lib/luarocks/rocks-$lua"
 
+if make --v > /dev/null
+	then echo "Command Line Tools ready"
+	# GUI request to install Xcode, do nothing or install Command Line Utilities. The first run asks permissions.
+	else xcode-select --install && sudo xcodebuild -runFirstLaunch
+fi
 if [ "$dir" ] # Adapt or remove this for other package managers
-	then echo "Homebrew already installed" && brew update
+	then echo "Homebrew ready," && brew update
 	else ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 fi
 
-brew install $(echo $lua | sed 's/\.//') ffmpeg freetype sdl2 sdl2_mixer xz # xctool wxwidgets
-brew cask install anybar
-lrx=luarocks$(if [ $lua ]; then echo -;fi)$(echo $lua | sed 's/\lua//')
-$lrx install lpeg
-$lrx install luafilesystem
-$lrx install luasocket # 3 year old 3.0-rc1 release Lua 5.2-3. Fix: https://github.com/diegonehab/luasocket/pull/69
-curl -fLsS https://patch-diff.githubusercontent.com/raw/diegonehab/luasocket/pull/69.diff | patch -bfN \
-	--verbose "$dir"/share/lua/$(echo $lua | sed 's/\lua//')/socket/http.lua
+# Todo: Build these in a shareable way, ie no optimisations for current architecture, eg conan.io
+brew install lua@$lua ffmpeg freetype sdl2 xz || true # wxwidgets doxygen
+brew install sdl2_mixer --with-mpg123 || true # For playing MP3s
+if [ ! -d "$rocksdir/lpeg" ]; then luarocks-$lua install lpeg; fi
+if [ ! -d "$rocksdir/luafilesystem" ]; then luarocks-$lua install luafilesystem; fi
+if [ ! -d "$rocksdir/luasocket" ]; then luarocks-$lua install luasocket --from=http://luarocks.org/dev; fi
 
-if [ -d CorsixTH/.git/ ]
-	then echo "Git repo already exists"
+if [ -d CorsixTH/.git ]
+	then echo "CorsixTH git repository ready"
 else
-	git clone https://github.com/CorsixTH/CorsixTH
-	# The following is usable but not preferable. This has minimal history, to download it all use 'git fetch --unshallow'
-	# git clone --depth=10 --branch master --single-branch https://github.com/CorsixTH/CorsixTH && git fetch --tags
+	git clone --branch=master https://github.com/CorsixTH/CorsixTH
 fi
 
 cd CorsixTH
-if ! git config --get remote.origin.url | grep -q -e CorsixTH/CorsixTH # If git repo is a fork
-	then git remote add -f --tags -t master upstream git@github.com:CorsixTH/CorsixTH.git || true
-	git checkout -b upstream upstream/master || true # Then add upstream remote and make a branch of it
+if ! git config --get remote.origin.url | grep -q -e CorsixTH/CorsixTH # If git repo is a fork add upstream remote
+	then git remote add -f --tags -t master upstream https://github.com/CorsixTH/CorsixTH || true
 fi
 
-mkdir -p build_files
-mkdir -p build/CorsixTH
 cd build_files # The build files folder is git ignored, so these scripts won't be in git status
-if [ ! -d .git/ ]
-	then git init
+if [ ! -d .git ]
+	then git init > /dev/null
 	git remote add origin https://github.com/tobylane/Bin
-	git config --add remote.origin.fetch "+refs/pull/*/head:refs/remotes/origin/pr/*"
 fi
-git fetch --all
-git checkout origin/master cthupdate cthpackage cthanybar cthnotify # prepare
+git fetch --all > /dev/null
+git checkout origin/master cthupdate cthpackage cthanybar cthnotify # cthprepare
 if [ ! -d create-dmg ]
-	then git clone https://github.com/andreyvit/create-dmg
+then
+  git clone https://github.com/andreyvit/create-dmg > /dev/null
+  curl -fLsS -o CthDmgBackground.png http://i.imgur.com/FKNlRIu.png
 fi
-curl -fLsS https://github.com/vjeantet/alerter/releases/download/002/alerter_v002_darwin_amd64.zip | bsdtar -xvf-
-curl -fLsS -o CthDmgBackground.png http://i.imgur.com/tG5uZOS.png
-chmod +x cthupdate cthpackage cthanybar cthnotify alerter
-
 
 if   [ -d CMake.app ]
-	then echo "CMake is already in place."
+	then echo "CMake ready"
 elif [ -d ../../CMake.app ]
 	then mv ../../CMake.app .
  		 echo "CMake has been put in the build files folder."
 elif [ -d /Applications/CMake.app ] || [ -d ~/Applications/CMake.app ]
 	then echo "You have CMake in an applications folder. Adjust the path in the update script or move the app to this folder."
-elif grep -q 'alias cmake=' ~/.bash_profile || [ -s "$dir"/bin/cmake ]
+elif grep -q 'alias cmake=' ~/.bash_profile || which cmake > /dev/null
 	then echo "Cmake is in your \$PATH or aliases. Adjust the update script to use this."
 else 
-	curl -fLS https://cmake.org/files/v3.5/cmake-3.5.0-Darwin-x86_64.tar.gz | tar --strip-components=1 -xz --atime-preserve
+	curl -fLS https://cmake.org/files/v3.10/cmake-3.10.2-Darwin-x86_64.tar.gz | tar --strip-components=1 -xz --atime-preserve
 	echo "CMake download complete."
 fi
 
-if [ $1 ] # If any parameter is given run the update/build script, pass on second parameter for package
-	then shift && ./cthupdate build "$@" # cthnotify or cthanybar can be used as a wrapper of cthupdate
-	else echo "Prepared. Run cthupdate, with optional paramaters build to force a build, and also package to create the archive"
+if [ "$1" ] # Pass on first parameter to cthupdate (for first build) and further to cthpackage
+	then ./cthupdate "$@"
+	else echo "Prepared. Run cthupdate, with optional parameters build to force a build."
 fi

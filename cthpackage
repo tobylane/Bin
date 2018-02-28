@@ -1,50 +1,62 @@
 #!/bin/bash
 set -ea
-[ -n "$CTH_VERBOSE" ] && set -x
-# Package up the app into given format - (default) xz = 7.9mb, zip = 11.2mb, folder = 29.2mb, dmg = 11.2mb
-# Not including AnimView.app of 8.3mb. Without dependencies xz = 1.5mb, zip = 2.3mb, folder = 7.8mb, dmg = 2.8mb
+[ "$CTH_VERBOSE" ] || [ "$CI" ] && set -x
+# Package up CorsixTH into given format - (default) xz = 8.8mb, zip = 11.9mb, folder = 31.2mb, dmg = 11.9mb
+# Including AnimView and LevelEdit - (default) xz = 11.2mb, zip = 15.4mb, folder = 39.8mb, dmg = 15.2mb
 # Copyright 2016- tobylane. Licensed under the MIT licence found in LICENSE.txt or online
 # Usage: cthpackage [ xz | zip | folder | dmg ] [ release ] [ upload ]
 
 if [ "$(basename "$(pwd)")" = "build_files" ]; then cd ..; fi
+cd "$(git rev-parse --show-toplevel)"
 
-# git checkout upstream # Uncomment these two lines if used in cthupdate:17
-folder=CorsixTH-mac-$(git rev-parse --short HEAD)
-if [ "$2" = "release" ] && git describe --tags --contains HEAD@{1} > /dev/null 2>&1
-	then folder=CorsixTH-mac-$(git describe --tags --contains HEAD@{1})
+if [ "$1" = "release" ] || [ "$2" = "release" ]
+then folder="CorsixTH $(git describe --abbrev=0 --tags)"; name="$folder"
+else folder="CorsixTH-mac-$(git rev-parse --short HEAD)"; name="CorsixTH $(git rev-parse --short HEAD)"
 fi
-# git checkout - # To return to the previous branch
 
-rsync -a CorsixTH.app ..
-cd ../
+if [ -d /Applications/AnimView.app ] # Todo: include LevelEdit
+then
+	mkdir -p ../Corsix-TH
+	cd ../Corsix-TH
+	rsync -a /Applications/CorsixTH.app /Applications/Animview.app .
+	mv CorsixTH.app/README.txt CorsixTH.app/CONTRIBUTING.txt CorsixTH.app/changelog.txt . || true
+	target=Corsix-TH
+elif [ -d /Applications/CorsixTH.app ]
+then
+	target=/Applications/CorsixTH.app
+else
+	echo "Please build apps first, or adjust expected locations." && exit 1
+fi
+cd ..
 
-if [ "$1" = 'xz' ] || ! [ $1 ]
+if [ "$1" = "xz" ] || ! [ "$1" ]
 then
 	file="$folder.tar.xz"
-	XZ_OPT=-7 tar cJf "$file" CorsixTH.app
+	XZ_OPT=-7 tar cJf "$file" $target
 elif [ "$1" = "zip" ]
 then
 	file="$folder.zip"
-	zip -qro9 "$file" CorsixTH.app
+	zip -qro9 "$file" $target
 elif [ "$1" = "dmg" ]
 then
-	name="$(echo $folder | sed 's/-mac-/ /')" # "CorsixTH commit/tag"
 	file="$name".dmg
 	CorsixTH/build_files/create-dmg/create-dmg --background CorsixTH/build_files/CthDmgBackground.png \
 	 --volname "$name" --volicon CorsixTH/CorsixTH/Icon.icns --icon-size 48 --window-size 600 337 \
-	 --text-size 12 --icon CorsixTH 76 151 --app-drop-link 224 151 "$name".dmg CorsixTH.app/ > /dev/null
-else
-	file="$folder"
-	rsync -a CorsixTH.app "$folder".app
-	exit # Currently nothing else will be done to a folder
+	 --text-size 12 --icon CorsixTH 76 151 --app-drop-link 224 151 "$file" $target > /dev/null
+	 defaults write com.apple.finder ShowPathbar -bool true
+	 defaults write com.apple.finder ShowStatusBar -bool true # create-dmg hides the status ans path bars
+elif [ ! -d "$folder" ]
+then
+  if [ "$target" = "/Applications/CorsixTH.app" ]; then rsync -a "$target/" "$name".app; fi
+	exit 0 # Currently nothing else will be done to a folder
 fi
 
 if [ "$2" = "upload" ] || [ "$3" = "upload" ]
 then
-	curl --progress-bar --upload-file "$file" https://transfer.sh/"$file" | pbcopy
+	curl --progress-bar --upload-file "$file" https://transfer.sh/"$name" | pbcopy
 	echo "$(pbpaste) in clipboard"
 fi
 
-openssl dgst -sha256 "$file" > "$file".sha256
-cat "$file".sha256
-rm -rf "$folder"
+openssl dgst -sha256 "$file" # > "$file".sha256
+#cat "$file".sha256
+#if [ "$target" = "Corsix-TH" ]; then rm -rf Corsix-TH; fi

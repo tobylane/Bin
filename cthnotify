@@ -3,44 +3,50 @@ set -a
 [ -n "$CTH_VERBOSE" ] && set -x
 # Announces build state with OS X Notifications via alerter
 # Copyright 2016- tobylane. Licensed under the MIT licence found in LICENSE.txt or online
+# Requires alerter: curl -fLsS https://github.com/vjeantet/alerter/releases/download/002/alerter_v002_darwin_amd64.zip | bsdtar -xvf-
 # Usage: Run manually or on schedule with launchctl/etc
 
-#cd $HOME/Downloads/CorsixTH/build_files # May be needed for launchctl if WorkingDirectory doesn't work
-output=$(./cthupdate "$@")
+#cd $HOME/Downloads/CorsixTH # May be needed for launchctl if WorkingDirectory doesn't work
+cd "$(git rev-parse --show-toplevel)"
+build_files/alerter -remove cth > /dev/null
+options="build_files/alerter -dropdownLabel Action -title CorsixTH Update -group cth -appIcon CorsixTH/Icon.icns"
+gitlog="git log --no-merges --oneline -1"
+output=$(build_files/cthupdate "$@")
 err=$?
-./alerter -remove cth > /dev/null
-options="-dropdownLabel Action -title CorsixTH Update -group cth -appIcon CorsixTH/Icon.icns"
+set -e
 
-if [ "$output" = 'No new changes' ]
-	then action=$(echo "No new changes, at $(git rev-parse --short HEAD)" | ./alerter -subtitle "Git status" -actions "Re-run,Open,Github" $options)
+if [ "$output" = "No new changes." ]
+	then action=$($gitlog --pretty=format:"%s" | $options -subtitle "No changes. Latest commit: $($gitlog --pretty=format:"%h")" -actions "Re-run,Open,Github")
 
 elif [ "$err" = "127" ]; then echo "Please run from the same folder as cthupdate or adapt this script"
 
 elif [ "$err" != "0" ]
-then if  ! git pull;		  then action=$(echo "A problem occurred in git"   | ./alerter -subtitle "Error" -actions "Re-run,Open in Finder,Github" $options)
-	elif ! ./cthupdate cmake; then action=$(echo "A problem occurred in CMake" | ./alerter -subtitle "Error" -actions "Re-run,Open in Finder,Github" $options)
-	elif ! ./cthupdate xcode; then action=$(echo "A problem occurred in Xcode" | ./alerter -subtitle "Error" -actions "Re-run,Open in Finder,Github" $options)
-	else action=$(echo "A problem occurred in an unknown area" | ./alerter -subtitle "Error" -actions "Re-run,Open in Finder,Github" $options)
+then if ! git pull --ff-only; then action=$(echo "A problem occurred in git" | $options -subtitle "Error" -actions "Re-run,Open in Finder,Github")
+	elif ! build_files/cthupdate cmake; then action=$(echo "A problem occurred in CMake" | $options -subtitle "Error" -actions "Re-run,Open in Finder,Github")
+	elif ! build_files/cthupdate make; then action=$(echo "A problem occurred in make" | $options -subtitle "Error" -actions "Re-run,Open in Finder,Github")
+	else action=$(echo "A problem occurred in an unknown area" | $options -subtitle "Error" -actions "Re-run,Open in Finder,Github")
 	fi
 
 elif [ "$err" = "0" ]
-then action=$(git log -1 --pretty=%B --no-merges | ./alerter -subtitle "Successful build. Commit $(git rev-parse --short HEAD)" -actions "Open,Commit details,Github" $options)
-	if git describe --tags --contains HEAD@{1} > /dev/null 2>&1
-		then action=$(git describe --tags --contains HEAD@{1} | ./alerter -subtitle "Release $(git describe --tags --contains HEAD@{1})" -actions "Open,Read changelog,Github" $options -group cthrelease)
+then action=$($gitlog --pretty=%B  | $options -subtitle "Successful build. Commit $(git rev-parse --short HEAD)" -actions "Open,Commit details,Github")
+	ver=$(git describe --tags --contains 'HEAD@{1}' 2>/dev/null || true)
+	if [ ${#ver} -lt 20 ] && [ -n "$ver" ]
+		then action=$($gitlog --pretty=format:"%s" "$ver" \
+		  | $options -subtitle "Release $ver" -actions "Open,Read changelog,Github" -group cthrelease)
 	fi
 
 else
 	echo "error was not 0 and not not 0"
-	./alerter -subtitle Error -message "Error in notify script" $options
+	$options -subtitle Error -message "Error in notify script"
 fi
 
 case $action in
 	@CONTENTCLICKED) echo "Dismissed" ;;
 	@CLOSED) echo "Dismissed" ;;
-	Re-run) ./cthnotify "$@" ;;
-	Open) open -a CorsixTH.app ;; # This can open a different, probably older, app.
-	"Open in Finder") open $(git rev-parse --show-toplevel) ;;
-	"Commit details") git log -n1 --color --no-merges --stat --date=local ;;
-	"Read changelog") open $(git rev-parse --show-toplevel)/CorsixTH/changelog.txt ;;
+	Re-run) build_files/cthnotify "$@" ;;
+	Open) open /Applications/CorsixTH.app ;;
+	"Open in Finder") open . ;;
+	"Commit details") $gitlog --pretty=medium --stat --date=local ;;
+	"Read changelog") open ./CorsixTH/changelog.txt ;;
 	Github) open https://github.com/CorsixTH/CorsixTH ;;
 esac
