@@ -1,4 +1,0 @@
-cd /Volumes/My\ Book/MY\ Music/
-find ./ -type d -print > /tmp/Music.txt
-sed 's/^...//' /tmp/Music.txt > /tmp/MMusic.txt
-sort /tmp/MMusic.txt -o ~/Documents/Music.txt
