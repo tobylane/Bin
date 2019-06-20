@@ -1,13 +1,12 @@
 #!/bin/bash
-set -a
 [ -n "$CTH_VERBOSE" ] && set -x
-# Announces build state with OS X Notifications via alerter
+set -o pipefail
+# Announces build state with macOS Notifications via alerter
 # Copyright 2016- tobylane. Licensed under the MIT licence found in LICENSE.txt or online
 # Requires alerter: curl -fLsS https://github.com/vjeantet/alerter/releases/download/002/alerter_v002_darwin_amd64.zip | bsdtar -xvf-
-# Usage: Run manually or on schedule with launchctl/etc
+# Usage: Run, with cthupdate parameters, manually or with launchctl with the following:
+# /bin/bash -c "(cd $HOME/Downloads/CorsixTH && build_files/cthnotify)"
 
-#cd $HOME/Downloads/CorsixTH # May be needed for launchctl if WorkingDirectory doesn't work
-cd "$(git rev-parse --show-toplevel)"
 build_files/alerter -remove cth > /dev/null
 options="build_files/alerter -dropdownLabel Action -title CorsixTH Update -group cth -appIcon CorsixTH/Icon.icns"
 gitlog="git log --no-merges --oneline -1"
@@ -18,7 +17,7 @@ set -e
 if [ "$output" = "No new changes." ]
 	then action=$($gitlog --pretty=format:"%s" | $options -subtitle "No changes. Latest commit: $($gitlog --pretty=format:"%h")" -actions "Re-run,Open,Github")
 
-elif [ "$err" = "127" ]; then echo "Please run from the same folder as cthupdate or adapt this script"
+elif [ "$err" = "127" ]; then echo "Please run from the CorsixTH folder."
 
 elif [ "$err" != "0" ]
 then if ! git pull --ff-only; then action=$(echo "A problem occurred in git" | $options -subtitle "Error" -actions "Re-run,Open in Finder,Github")
@@ -28,16 +27,12 @@ then if ! git pull --ff-only; then action=$(echo "A problem occurred in git" | $
 	fi
 
 elif [ "$err" = "0" ]
-then action=$($gitlog --pretty=%B  | $options -subtitle "Successful build. Commit $(git rev-parse --short HEAD)" -actions "Open,Commit details,Github")
+then action=$($gitlog --pretty=%B | $options -subtitle "Successful build. Commit $(git rev-parse --short HEAD)" -actions "Open,Commit details,Github")
 	ver=$(git describe --tags --contains 'HEAD@{1}' 2>/dev/null || true)
 	if [ ${#ver} -lt 20 ] && [ -n "$ver" ]
 		then action=$($gitlog --pretty=format:"%s" "$ver" \
 		  | $options -subtitle "Release $ver" -actions "Open,Read changelog,Github" -group cthrelease)
 	fi
-
-else
-	echo "error was not 0 and not not 0"
-	$options -subtitle Error -message "Error in notify script"
 fi
 
 case $action in

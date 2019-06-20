@@ -1,32 +1,34 @@
 #!/bin/bash
-set -ea
 [ "$CTH_VERBOSE" ] || [ "$CI" ] && set -x
-# Creates environment for compiling CorsixTH. Recommended to run in ~/Downloads/ or where the git repository folder is.
-# Xz, wxwidgets, doxygen, alerter and anybar are not required for CorsixTH and are not checked for.
-# Expected to work with OS X 10.11+ (requirement raised due to SDL's libmodplug). Tested on 10.13.
+set -euo pipefail
+# Create environment for compiling CorsixTH. Recommended to run in ~/Downloads/ or where the git repository folder is.
+# Wxwidgets, Java, doxygen, alerter and anybar are not required for CorsixTH and are not checked for.
+# Expected to work with OS X 10.11+. Tested on 10.13.
 # Copyright 2016- tobylane. Licensed under the MIT licence found in LICENSE.txt or online
-# Usage: cthprepare [ clean | build | cmake | make | animview [ package [ xz | zip | folder | dmg ] [ release | upload ] ] ]
+# Usage: cthprepare [ clean | build | cmake | make | animview [ xz | zip | folder | dmg ] [ release | upload ] ]
 
 lua=5.3 # 5.1 5.3 for lua5.1 lua5.3 (lua 5.2 not avaliable in homebrew, both or luajit not recommended)
-dir="$(brew --prefix)" # Adjust for your package manager or manual install
-rocksdir="$dir/lib/luarocks/rocks-$lua"
 
 if make --v > /dev/null
-	then echo "Command Line Tools ready"
+	then echo "Command Line Tools installed"
 	# GUI request to install Xcode, do nothing or install Command Line Utilities. The first run asks permissions.
 	else xcode-select --install && sudo xcodebuild -runFirstLaunch
 fi
-if [ "$dir" ] # Adapt or remove this for other package managers
-	then echo "Homebrew ready," && brew update
+if brew --prefix > /dev/null # Adapt or remove this for other package managers
+	then echo "Homebrew installed. $(brew update)"
 	else ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 fi
 
-# Todo: Build these in a shareable way, ie no optimisations for current architecture, eg conan.io
-brew install lua@$lua ffmpeg freetype sdl2 xz || true # wxwidgets doxygen
-brew install sdl2_mixer --with-mpg123 || true # For playing MP3s
-if [ ! -d "$rocksdir/lpeg" ]; then luarocks-$lua install lpeg; fi
-if [ ! -d "$rocksdir/luafilesystem" ]; then luarocks-$lua install luafilesystem; fi
-if [ ! -d "$rocksdir/luasocket" ]; then luarocks-$lua install luasocket --from=http://luarocks.org/dev; fi
+brew install lua@$lua luarocks ffmpeg freetype sdl2 cmake xz || true # wxwidgets doxygen
+brew install --with-mpg123 --with-flac --with-libmikmod --with-fluid-synth \
+  https://raw.githubusercontent.com/Homebrew/homebrew-core/a9114e/Formula/sdl2_mixer.rb || true
+  # For full audio support, may need reinstall
+
+dir="$(brew --prefix)" # Adjust for your package manager or manual install of homebrew
+luarocks="luarocks --lua-dir=$dir/opt/lua@$lua" # Adjust for your manual install of lua or luarocks
+if [ ! -f "$dir/lib/lua/$lua/lpeg.so" ]; then $luarocks install lpeg; fi
+if [ ! -f "$dir/lib/lua/$lua/lfs.so" ]; then $luarocks install luafilesystem; fi
+if [ ! -f "$dir/lib/lua/$lua/socket/core.so" ]; then $luarocks install luasocket --from=http://luarocks.org/dev; fi
 
 if [ -d CorsixTH/.git ]
 	then echo "CorsixTH git repository ready"
@@ -35,38 +37,26 @@ else
 fi
 
 cd CorsixTH
-if ! git config --get remote.origin.url | grep -q -e CorsixTH/CorsixTH # If git repo is a fork add upstream remote
+if ! git remote -v | grep -qie CorsixTH/CorsixTH # If git repo is a fork add upstream remote
 	then git remote add -f --tags -t master upstream https://github.com/CorsixTH/CorsixTH || true
 fi
 
+mkdir -p build_files
 cd build_files # The build files folder is git ignored, so these scripts won't be in git status
 if [ ! -d .git ]
 	then git init > /dev/null
 	git remote add origin https://github.com/tobylane/Bin
 fi
 git fetch --all > /dev/null
-git checkout origin/master cthupdate cthpackage cthanybar cthnotify # cthprepare
-if [ ! -d create-dmg ]
+git checkout origin/master cthupdate cthpackage cthanybar cthnotify readme.md # cthprepare
+if [ ! -d MacOS-DMG-Creator ]
 then
-  git clone https://github.com/andreyvit/create-dmg > /dev/null
+  git clone https://github.com/colinjmatt/MacOS-DMG-Creator > /dev/null
+  chmod +x MacOS-DMG-Creator/dmg-create
   curl -fLsS -o CthDmgBackground.png http://i.imgur.com/FKNlRIu.png
 fi
 
-if   [ -d CMake.app ]
-	then echo "CMake ready"
-elif [ -d ../../CMake.app ]
-	then mv ../../CMake.app .
- 		 echo "CMake has been put in the build files folder."
-elif [ -d /Applications/CMake.app ] || [ -d ~/Applications/CMake.app ]
-	then echo "You have CMake in an applications folder. Adjust the path in the update script or move the app to this folder."
-elif grep -q 'alias cmake=' ~/.bash_profile || which cmake > /dev/null
-	then echo "Cmake is in your \$PATH or aliases. Adjust the update script to use this."
-else 
-	curl -fLS https://cmake.org/files/v3.10/cmake-3.10.2-Darwin-x86_64.tar.gz | tar --strip-components=1 -xz --atime-preserve
-	echo "CMake download complete."
-fi
-
-if [ "$1" ] # Pass on first parameter to cthupdate (for first build) and further to cthpackage
+if [ "$*" ] # Pass on first parameter to cthupdate (for first build) and further to cthpackage
 	then ./cthupdate "$@"
-	else echo "Prepared. Run cthupdate, with optional parameters build to force a build."
+	else echo "Prepared. Run cthupdate, with optional parameters build to force a build"
 fi

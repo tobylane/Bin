@@ -1,11 +1,16 @@
 ### CorsixTH
+
 Scripts to have the latest changes of [CorsixTH.](https://github.com/CorsixTH/CorsixTH) Works in progress, supported but not guaranteed, set $CTH_VERBOSE to not empty for debug, MIT licence.
 
-- cthprepare - Sets up an environment for building CorsixTH. If not available, installs Command Line Tools, [Homebrew](http://brew.sh/), Lua 5.3 (change at top of file), ffmpeg, freetype, sdl2, sdl2\_mixer, luafilesystem, lpeg and luasocket for CorsixTH.
-Clones git repo if it doesn't exist in current folder, adds upstream remote if it's a fork. Downloads CMake app if it's not in natural places. Downloads these scripts with xz, create-dmg and dmg background (below).
-- cthupdate  - Builds what it was asked to (run CMake and/or make for CorsixTH, CMake and make for AnimViewer, or clean build directory), or only what is needed with the latest changes from git.
+- cthprepare - Sets up an environment for building CorsixTH. If not available, installs Xcode's Command Line Tools, [Homebrew](http://brew.sh/), Lua 5.3 (change at top of file), ffmpeg, freetype, sdl2, sdl2\_mixer, luarocks,
+ luafilesystem, lpeg and luasocket for CorsixTH. Clones git repo if it doesn't exist in current folder, adds upstream remote if it's a fork. Downloads these scripts with cmake, xz, dmg-create and the dmg background (below).
+
+- cthupdate - Builds what it was asked to (run CMake and/or make for CorsixTH, CMake and make for AnimViewer, or clean build directory), or only what is needed with the latest changes from git.
+
 - cthpackage - Packages the latest build of CorsixTH in a xz, zip, folder or DMG in the folder above the git repository. Makes a checksum and optionally uploads the package.
+
 - cthanybar  - A wrapper for cthupdate which announces the state of the latest build via [Anybar](https://github.com/tonsky/AnyBar), a coloured dot on the menu bar.
+
 - cthnotify  - A wrapper for cthupdate which announces the state of the latest build via [Alerter](https://github.com/vjeantet/alerter/), a native User Alert with relevant information and options for each outcome.
 
 Quickstart

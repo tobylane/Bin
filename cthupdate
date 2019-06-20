@@ -1,15 +1,16 @@
 #!/bin/bash
-set -ea
 [ "$CTH_VERBOSE" ] || [ "$CI" ] && set -x
-# Pull the latest changes, if any cmake then run cmake and make, if any c++ then run make.
-# Otherwise the lua files are copied into the latest app.
-# brew update && brew upgrade # A good idea every so often, brew outdated to see what upgrade will do
+set -eo pipefail
+# Pull the latest changes, if any CMake/C++ then run CMake and make, else the Lua files are copied into the latest app.
+# brew upgrade; brew doctor # A good idea every so often, brew outdated to see what upgrade will do
 # Copyright 2016- tobylane. Licensed under the MIT licence found in LICENSE.txt or online
-# Usage: cthupdate [ clean | build | cmake | make | animview [ package [ xz | zip | folder | dmg ] [ release | upload ] ] ]
+# Usage: cthupdate [ clean | build | cmake | make | animview [ xz | zip | folder | dmg ] [ release | upload ] ]
+
 lua=5.3 # 5.1 5.3 for lua5.1 lua5.3
 gitlog=2 # Length of git log, 0 is acceptable
-dir="$(brew --prefix)" # Adjust for your package manager or manual install
-cmake="build_files/CMake.app/Contents/bin/cmake" # Change build_files to Applications, etc. Or just cmake if its available
+dir="$(/usr/local/bin/brew --prefix)" # Adjust for your package manager or manual install
+cmake="$dir/bin/cmake" # Set to /Applications/CMake.app/Contents/bin/cmake to use CLI from app instead of homebrew
+prefix="/Applications"
 
 if [ "$(basename "$(pwd)")" = "build_files" ]; then cd ..; fi
 cd "$(git rev-parse --show-toplevel)"
@@ -23,43 +24,44 @@ fi
 if [ "$1" != "build" ] && [ "$1" != "cmake" ] && [ "$1" != "make" ] && [ "$1" != "animview" ] && \
    [ "$(curl -sS -H "If-None-Match: $(git rev-parse HEAD)" -H 'Accept: application/vnd.github.v3.sha' \
 'http://api.github.com/repos/CorsixTH/CorsixTH/commits/master' -o /dev/null -m 3 -w '%{http_code}')" != "304" ] \
-   && [ "$(git pull --ff-only)" = "Already up-to-date." ]
+   && git pull --rebase --autostash 2>&1 | grep -qie 'up to date' >/dev/null # Alternatively 'git pull --ff-only'
 then
-	if [ "$?" = "128" ]; then echo "Git couldn't pull cleanly."; exit 128
-	else echo "No new changes."; exit 0
-	fi
+	echo "No new changes."; exit 0
+elif git status | grep -qie 'HEAD detached'; then echo "Building headless"
+elif git status | grep -qie 'Unmerged paths'; then echo "Git couldn't pull cleanly."; exit 128
 fi
 
 diff=$(git diff --name-only 'HEAD@{1}' HEAD || git diff --name-only HEAD^ HEAD | tr ' ' '\n')
-if [ "$1" = "build" ] || [ "$1" = "cmake" ] || echo "$diff" | grep -qi -e cmake
+if [ "$1" = "build" ] || [ "$1" = "cmake" ] || echo "$diff" | grep -qie cmake
 then
-	 "$cmake" . -G"Unix Makefiles" -Bbuild -Wno-dev -DUSE_SOURCE_DATADIRS=OFF \
-	  -DLUA_PROGRAM_PATH="$dir/bin/lua$lua" -DLUA_INCLUDE_DIR="$dir/include/lua$lua/" \
-	  -DLUA_LIBRARY="$dir/lib/liblua.$lua.dylib" -DCMAKE_INSTALL_PREFIX=/Applications
+	"$cmake" . -G"Unix Makefiles" -Bbuild -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX="$prefix" \
+	  -DCORSIX_TH_DATADIR="$prefix"/CorsixTH.app/Contents/Resources -DLUA_LIBRARY="$dir/lib/liblua.$lua.dylib" \
+	  #-DAVCODEC_LIBRARIES="build_files/libs/lib/libavcodec.dylib" -DAVDEVICE_LIBRARIES="build_files/libs/lib/libdevice.dylib" \
+	  #-DAVFORMAT_LIBRARIES="build_files/libs/lib/libavformat.dylib" -DAVUTIL_LIBRARIES="build_files/libs/lib/libavutil.dylib" \
+	  #-DSWRESAMPLE_LIBRARIES="build_files/libs/lib/libswresample.dylib" -DSWSCALE_LIBRARIES="build_files/libs/lib/libswscale.dylib" \
 fi
 
-if [ "$1" = "build" ] || [ "$1" = "make" ] || echo "$diff" | grep -qi -e cmake -e Src
+if [ "$1" = "build" ] || [ "$1" = "make" ] || echo "$diff" | grep -qie cmake -e Src
 then
-	"$cmake" --build build/CorsixTH/ --target -- --always-make install #2>/dev/null
-	echo "build"
+	"$cmake" --build build/CorsixTH/ --target -- install #--always-make install 2>/dev/null
 
 elif echo "$diff" | grep -qi -e CorsixTH/CorsixTH -e .txt
 then
 	cd CorsixTH
-	rsync -a CorsixTH.lua Lua Levels Campaigns Graphics /Applications/CorsixTH.app/Contents/Resources/
+	rsync -a CorsixTH.lua Lua Levels Campaigns Graphics "$prefix"/CorsixTH.app/Contents/Resources/
 	rsync -a Bitmap/aux_ui.* Bitmap/tree_ctrl.* Bitmap/mainmenu1080.dat Bitmap/mainmenu1080.pal \
-		/Applications/CorsixTH.app/Contents/Resources/Bitmap/
+		"$prefix"/CorsixTH.app/Contents/Resources/Bitmap/
 
 else echo "Nothing to do."
 fi
 
-if [ "$1" = "animview" ] || echo "$diff" | grep -qi -e AnimView -e AnimationViewer
+if [ "$1" = "animview" ] #|| echo "$diff" | grep -qi -e AnimView -e AnimationViewer
 then
-	"$cmake" . -G"Unix Makefiles" -Bbuild -Wno-dev -DBUILD_ANIMVIEWER=ON -DCMAKE_INSTALL_PREFIX=/Applications
+	"$cmake" . -G"Unix Makefiles" -Bbuild -Wno-dev -DBUILD_ANIMVIEWER=ON -DCMAKE_INSTALL_PREFIX="$prefix"
 	"$cmake" --build build/AnimView/ --target -- --always-make install #2>/dev/null
 fi
 
-rsync -a README.txt CONTRIBUTING.txt changelog.txt /Applications/CorsixTH.app/ || true
+rsync -a README.txt LICENSE.txt CONTRIBUTING.txt changelog.txt "$prefix"/CorsixTH.app/ || true
 
 if git describe --tags --contains 'HEAD@{1}' > /dev/null 2>&1 # Release or release candidate
 	then open -gt changelog.txt
@@ -68,8 +70,8 @@ fi
 git --no-pager log --no-merges -${gitlog:-1} --oneline --decorate --graph 'HEAD@{1}..HEAD' \
   || git log --oneline -1 --no-merges
 
-# git checkout - > /dev/null 2>&1 # To return to the previous branch, to be used with line 17
+# git checkout - # To return to the previous branch, to be used with line 19
 
-if [ "$2" = "package" ]
-	then build_files/cthpackage "${@:3}"
+if [ "$2" ]
+	then shift; build_files/cthpackage "$@"
 fi

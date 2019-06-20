@@ -1,25 +1,25 @@
 #!/bin/bash
-set -a
 [ -n "$CTH_VERBOSE" ] && set -x
+set -uo pipefail
 # Announces build state via Anybar's coloured dot in the menu bar
 # Copyright 2016- tobylane. Licensed under the MIT licence found in LICENSE.txt or online
 # Requires Anybar: brew cask install anybar or https://github.com/tonsky/AnyBar
-# Usage: Run manually or on schedule with launchctl
+# Usage: Run, with cthupdate parameters, manually or with launchctl with the following:
+# /bin/bash -c "(cd $HOME/Downloads/CorsixTH && build_files/cthanybar)"
 
 ANYBAR_PORT=1739 open -a Anybar # Different port, open and direct Anybar
 anybar () { printf %s "$1" | nc -4u -w0 localhost "${2:-1739}"; }
-#cd $HOME/Downloads/CorsixTH/build_files # May be needed for launchctl if WorkingDirectory doesn't work
 cd "$(git rev-parse --show-toplevel)"
+anybar question # In progress
 output=$(build_files/cthupdate "$@")
 err=$?
 set -e
-anybar question # In progress
 
 if [ "$output" = 'No new changes.' ]
 then anybar purple # No changes
 
-#elif git diff --name-only HEAD@{1} HEAD | grep -q -e .cmake -e Src -e .txt
-#then anybar blue # Lua changes only
+elif [ -z "$*" ] && ! git diff --name-only 'HEAD@{1}' HEAD | grep -qi -e cmake -e Src
+then anybar blue # Lua changes only
 
 elif [ "$err" != "0" ]
 then # Git/cmake/xcode/bash failed, narrow it down
@@ -30,12 +30,10 @@ then # Git/cmake/xcode/bash failed, narrow it down
 	fi
 
 elif [ "$err" = "0" ]
-then anybar green # Successful new build
+then
 	if git describe --tags --contains 'HEAD@{1}' > /dev/null 2>&1
 		then anybar cyan # Release
+	else
+		anybar green # Successful new build
 	fi
-
-else
-	echo "error was not 0 and not not 0"
-	anybar exclamation
 fi
