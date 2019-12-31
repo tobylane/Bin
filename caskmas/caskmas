@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Copyright 2019- tobylane. Licensed under the MIT licence found in LICENSE.txt or online
+# Find apps that could be replaced by versions from Homebrew cask or Mac Apple Store
+# For easier updating, not relying on internal Sparkle/etc
+# Search through folders (eg Applications), find apps, check they aren't from cask/mas/apple
+# Prefers Homebrew over Mac Apple Store for price, accuracy and information
+# Requires https://github.com/mas-cli/mas https://github.com/ali-rantakari/trash, brew install mas trash
+# Todo: Make quieter, increase accuracy, ignore games/steam/epic/etc
+
+brew update
+# mas outdated; brew cask outdated #; mas upgrade; brew cask upgrade
+
+# Apps you don't want updated
+ignore=("App One" "Second special app" "Steam")
+# Apple apps from system updates
+apple=("App Store" "Automator" "Calculator" "Calendar" "Chess" "Contacts" "DVD Player" "Dashboard"
+ "Dictionary" "FaceTime" "Font Book" "GarageBand" "Image Capture" "Launchpad" "Mail" "Maps" "Messages"
+ "Mission Control" "Notes" "Photo Booth" "Photos" "Preview" "QuickTime Player" "Reminders" "Safari"
+ "Siri" "Stickies" "System Preferences" "TextEdit" "Time Machine" "Xcode" "iBooks" "iTunes")
+
+if [ -d "$1" ]; then cd="$1"
+elif ls ./*.app >/dev/null 2>&1; then cd="$PWD"
+else cd="Applications"
+fi
+cd "$cd" || exit; echo Running in "$cd"
+
+mapfile -t mas < <(mas list | cut -f2- -d' ' | rev | cut -f2- -d' ' | rev)
+for app in *.app; do
+echo --
+  name="${app:0:-4}"; brew="${name// /-}"
+  if [[ "${ignore[*]}" == *"$name"* ]] || [[ "${apple[*]}" == *"$name"* ]]; then echo Ignoring: "$name"
+  elif [[ "${mas[*]}" == *"$name"* ]]; then echo Already installed by mas: "$name"
+  elif brew cask ls --versions "$brew" 2>/dev/null; then echo Already installed by brew: "$name"
+  else
+    echo "$name" "$(mdls -name kMDItemVersion "$app" | cut -d"\"" -f2)"
+ 	  if brew cask info "$brew" >/dev/null 2>&1 | sed -n -e '1,2p' && [ "$1" = "install" ]; then
+ 	    #if [ "$PWD" != "/Applications" ]; then trash "$app"; fi
+ 	    brew cask install "$brew"; continue
+		elif mas search "$name" >/dev/null 2>&1; then
+			if mas info "$(mas search "$name" | head -n1 | sed 's/^ *//g' | cut -d' ' -f1)" | head -n2 && [ "$1" = "install" ]; then
+			  #if [ "$PWD" != "/Applications" ]; then trash "$app"; fi
+			  echo mas lucky "$name"; continue # mas results are unreliable, do this manually
+			fi
+		else echo Not avaliable; if [ "$1" = "list" ]; then list="$list $name,"; fi
+		fi
+	fi
+done 
+if [ "$1" = "list" ] && [ -n "$list" ]; then echo --; echo "$list"; fi
