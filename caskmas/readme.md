@@ -1,10 +1,11 @@
 ## Caskmas
 
-Finds you a centralised app store for existing apps.
-Looks in Homebrew cask and Mac Apple Store for what you downloaded and probably haven't updated.
-Requires Bash>4, mas, trash - brew install bash mas trash.  
-MIT Licence  
-Passes Shellcheck  
+Finds you a centralised app store for existing apps.  
+Looks in Homebrew cask and Mac Apple Store for what you downloaded and probably haven't updated.  
+Requires mas and trash - brew install mas trash.  
+(Formerly required Bash 4+, still a good idea generally.)  
+MIT Licence.  
+Passes Shellcheck.  
 Option: install: if an app could be replaced by one from Homebrew then do it.  
 Option: list: list all apps not found in either app store.  
 
@@ -15,10 +16,6 @@ $ caskmas list
 Already up-to-date.
 Running in /Applications
 --
-Alfred 4 4.0.5
-Not avaliable
---
-anybar 0.1.4
 Already installed by brew: AnyBar
 --
 Ignoring: App Store
@@ -33,10 +30,28 @@ GrandPerspective 1.5.0
 GrandPerspective 2.3.2 [1.99]
 By: Erwin Bonsma
 --
-Not avaliable
- Alfred
+Luminance HDR 2.6.0 Unknown Version
+Not available
+--
+Not available
+ Luminance HDR
+
+$ caskmas install
+Already up-to-date.
+Running in /Downloads
+--
+GitHub Hasty Things Done Hastily
+==> Downloading https://desktop.githubusercontent.com/releases/2.3.1-8a055015/GitHubDeskto
+################################################################################### 100.0%
+==> Verifying SHA-256 checksum for Cask 'github'.
+==> Installing Cask github
+==> Moving App 'GitHub Desktop.app' to '/Applications/GitHub Desktop.app'.
+==> Linking Binary 'github.sh' to '/usr/local/bin/github'.
+🍺  github was successfully installed!
 ```
 
-Alfred installed by Homebrew is Alfred 4.app, this is a caskmas bug.
-The app ignores App Store because it is updated with the OS.
-Clementine was found in Homebrew cask, GrandPerspective was found in the Mac App Store.
+Caskmas doesn't know about apps with different names from their packages, eg Alfred, Github Desktop.  
+The script ignores App Store because it is updated with the OS.  
+Clementine was found in Homebrew cask, GrandPerspective was found in the Mac App Store.  
+Mac App Store search results may be less than helpful, sorry.  
+What this doesn't do is update everything, that's brew upgrade; mas update
