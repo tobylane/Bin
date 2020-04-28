@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2039
+set -eo pipefail
+[ -n "$DEBUG" ] && set -x
+# https://github.com/lavoiesl/osx-cpu-temp into https://github.com/tonsky/AnyBar
+# Copyright 2017- tobylane. Licensed under the MIT licence found in LICENSE.txt or online
+# Usage: tempinbar [ install | quiet | help | quiet | once ]
+
+trap 'anybar quit' EXIT
+anybar() { printf %s "$1" | nc -4u -w0 localhost 1750; }
+ANYBAR_PORT=1750 open -ga Anybar # Different port, open and direct a specific Anybar
+sleep 0.04
+
+tempinbar() {
+  anybar question
+  output=$(osx-cpu-temp | head -c 2)
+  if [ "$output" -gt 59 ]; then tput bel; fi
+
+  case $output in
+    [7-9][0-9]) anybar exclamation ;;
+    6[5-9]) anybar red ;;
+    6[0-4]) anybar orange ;;
+    5[5-9]) anybar yellow ;;
+    5[0-4]) anybar green ;;
+    4[5-9]) anybar cyan ;;
+    4[0-4]) anybar blue ;;
+    [0-3][0-9]) anybar purple ;;
+    *) anybar question ;;
+  esac
+
+  if [ -z "${count}" ] && [ -z "$PS1" ] && [ "$1" != "once" ]; then
+    echo 'CPU Temperature in Menubar. Press any key to exit'
+    count=0
+  fi
+  if [ "$1" != "quiet" ] && ((count % 10 == 0)); then say "$output"; fi
+  # say $(osx-cpu-temp -F | head -c 2) # Fahrenheit
+  # shellcheck disable=SC2039
+  if [ "$1" != "once" ] && ! read -rt 20 -n 1; then
+    count=$((count + 1))
+    tempinbar "$@"
+  fi
+}
+
+if [ "$1" = "install" ]; then
+  brew install osx-cpu-temp
+  brew cask install anybar
+
+elif [ "$1" = "help" ]; then
+  printf "CPU Temperature put in menubar with a scale of purple (<40C) to\
+ cyan (45-50C) to orange (60-65C) to red exclamation (>=70C). Bell for above 60C.\n"
+
+elif ! tempinbar "$@"; then
+  anybar black
+fi
