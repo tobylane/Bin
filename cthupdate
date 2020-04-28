@@ -1,5 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 [ "$CTH_VERBOSE" ] || [ "$CI" ] && set -x
+# shellcheck disable=SC2039
 set -eo pipefail
 # Pull the latest changes, if any CMake/C++ then run CMake and make, else the Lua files are copied into the latest app.
 # brew upgrade; brew doctor # A good idea every so often, brew outdated to see what upgrade will do
@@ -9,69 +10,70 @@ set -eo pipefail
 lua=5.3 # 5.1 5.3 for lua5.1 lua5.3
 gitlog=2 # Length of git log, 0 is acceptable
 dir="$(/usr/local/bin/brew --prefix)" # Adjust for your package manager or manual install
+#ver= # Target sdk version, or blank for latest, list with xcodebuild -showsdks
 cmake="$dir/bin/cmake" # Set to /Applications/CMake.app/Contents/bin/cmake to use CLI from app instead of homebrew
 prefix="/Applications"
+#lib=build_files/libs
 
-if [ "$(basename "$(pwd)")" = "build_files" ]; then cd ..; fi
+if [ "$(basename "$PWD")" = "build_files" ]; then cd ..; fi
 cd "$(git rev-parse --show-toplevel)"
 
 # If the git repository is a fork and you want to build the latest upstream version
 # git fetch upstream && git checkout upstream/master > /dev/null 2>&1
 
 if [ "$1" = "clean" ]
-	then rm -rf build && mkdir -p build/CorsixTH && echo "Cleaned" && exit 0
+  then rm -rf build && mkdir -p build/CorsixTH && echo "Cleaned" && exit 0
 fi
-if [ "$1" != "build" ] && [ "$1" != "cmake" ] && [ "$1" != "make" ] && [ "$1" != "animview" ] && \
+if [ "$1" != "build" ] && [ "$1" != "cmake" ] && [ "$1" != "make" ] && [ "$1" != "animview" ] &&
    [ "$(curl -sS -H "If-None-Match: $(git rev-parse HEAD)" -H 'Accept: application/vnd.github.v3.sha' \
-'http://api.github.com/repos/CorsixTH/CorsixTH/commits/master' -o /dev/null -m 3 -w '%{http_code}')" != "304" ] \
-   && git pull --rebase --autostash 2>&1 | grep -qie 'up to date' >/dev/null # Alternatively 'git pull --ff-only'
+'http://api.github.com/repos/CorsixTH/CorsixTH/commits/master' -o /dev/null -m 3 -w '%{http_code}')" != "304" ] &&
+  git pull --rebase --autostash 2>&1 | grep -qie 'up to date' >/dev/null # Alternatively 'git pull --ff-only'
 then
-	echo "No new changes."; exit 0
-elif git status | grep -qie 'HEAD detached'; then echo "Building headless"
+  echo "No new changes."; exit 0
+elif git status | grep -qie 'HEAD detached'; then echo "Building detached head state"
 elif git status | grep -qie 'Unmerged paths'; then echo "Git couldn't pull cleanly."; exit 128
 fi
 
 diff=$(git diff --name-only 'HEAD@{1}' HEAD || git diff --name-only HEAD^ HEAD | tr ' ' '\n')
 if [ "$1" = "build" ] || [ "$1" = "cmake" ] || echo "$diff" | grep -qie cmake
 then
-	"$cmake" . -G"Unix Makefiles" -Bbuild -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX="$prefix" \
-	  -DCORSIX_TH_DATADIR="$prefix"/CorsixTH.app/Contents/Resources -DLUA_LIBRARY="$dir/lib/liblua.$lua.dylib" \
-	  #-DAVCODEC_LIBRARIES="build_files/libs/lib/libavcodec.dylib" -DAVDEVICE_LIBRARIES="build_files/libs/lib/libdevice.dylib" \
-	  #-DAVFORMAT_LIBRARIES="build_files/libs/lib/libavformat.dylib" -DAVUTIL_LIBRARIES="build_files/libs/lib/libavutil.dylib" \
-	  #-DSWRESAMPLE_LIBRARIES="build_files/libs/lib/libswresample.dylib" -DSWSCALE_LIBRARIES="build_files/libs/lib/libswscale.dylib" \
+   #CXXFLAGS="-march=nehalem -isysroot $(xcodebuild -sdk macosx$ver -version Path) -O2 -pipe" \
+   #MACOSX_DEPLOYMENT_TARGET=$ver CMAKE_INCLUDE_PATH="$lib/include" CMAKE_LIBRARY_PATH="$lib/lib" \
+    "$cmake" . -G"Unix Makefiles" -Bbuild -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX="$prefix" \
+    -DWITH_AUDIO=ON -DWITH_MOVIES=ON -DLUA_LIBRARY="$dir/lib/liblua.$lua.dylib"
 fi
 
 if [ "$1" = "build" ] || [ "$1" = "make" ] || echo "$diff" | grep -qie cmake -e Src
 then
-	"$cmake" --build build/CorsixTH/ --target -- install #--always-make install 2>/dev/null
+  "$cmake" --build build/CorsixTH/ --target -- install #--always-make install 2>/dev/null
 
 elif echo "$diff" | grep -qi -e CorsixTH/CorsixTH -e .txt
 then
-	cd CorsixTH
-	rsync -a CorsixTH.lua Lua Levels Campaigns Graphics "$prefix"/CorsixTH.app/Contents/Resources/
-	rsync -a Bitmap/aux_ui.* Bitmap/tree_ctrl.* Bitmap/mainmenu1080.dat Bitmap/mainmenu1080.pal \
-		"$prefix"/CorsixTH.app/Contents/Resources/Bitmap/
+  cd CorsixTH
+  rsync -a CorsixTH.lua Lua Levels Campaigns Graphics "$prefix"/CorsixTH.app/Contents/Resources/
+  rsync -a Bitmap/aux_ui.* Bitmap/tree_ctrl.* Bitmap/mainmenu1080.dat Bitmap/mainmenu1080.pal \
+    "$prefix"/CorsixTH.app/Contents/Resources/Bitmap/
 
-else echo "Nothing to do."
+#else echo "Nothing to do." # Outputs on cmake command or file trigger, fix
 fi
 
-if [ "$1" = "animview" ] #|| echo "$diff" | grep -qi -e AnimView -e AnimationViewer
+if [ "$1" = "animview" ] #|| echo "$diff" | grep -qie AnimView -e AnimationViewer
 then
-	"$cmake" . -G"Unix Makefiles" -Bbuild -Wno-dev -DBUILD_ANIMVIEWER=ON -DCMAKE_INSTALL_PREFIX="$prefix"
-	"$cmake" --build build/AnimView/ --target -- --always-make install #2>/dev/null
+  "$cmake" . -G"Unix Makefiles" -Bbuild -DBUILD_ANIMVIEWER=ON -DCMAKE_INSTALL_PREFIX="$prefix"
+  "$cmake" --build build/AnimView/ --target -- --always-make install #2>/dev/null
 fi
 
 rsync -a README.txt LICENSE.txt CONTRIBUTING.txt changelog.txt "$prefix"/CorsixTH.app/ || true
 
 if git describe --tags --contains 'HEAD@{1}' > /dev/null 2>&1 # Release or release candidate
-	then open -gt changelog.txt
+  then open -gt changelog.txt
 fi
 # Remove the single quoted section if you want to see changes pulled before today
 git --no-pager log --no-merges -${gitlog:-1} --oneline --decorate --graph 'HEAD@{1}..HEAD' \
   || git log --oneline -1 --no-merges
 
-# git checkout - # To return to the previous branch, to be used with line 19
+# git checkout - # To return to the previous branch, to be used with line 22
 
 if [ "$2" ]
-	then shift; build_files/cthpackage "$@"
+  then shift; build_files/cthpackage "$@"
 fi

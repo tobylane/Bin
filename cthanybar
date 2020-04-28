@@ -1,11 +1,12 @@
-#!/bin/bash
+#!/usr/bin/env bash
 [ -n "$CTH_VERBOSE" ] && set -x
-set -uo pipefail
+# shellcheck disable=SC2039
+set -E
 # Announces build state via Anybar's coloured dot in the menu bar
 # Copyright 2016- tobylane. Licensed under the MIT licence found in LICENSE.txt or online
 # Requires Anybar: brew cask install anybar or https://github.com/tonsky/AnyBar
 # Usage: Run, with cthupdate parameters, manually or with launchctl with the following:
-# /bin/bash -c "(cd $HOME/Downloads/CorsixTH && build_files/cthanybar)"
+# /usr/local/bin/bash -c "(cd $HOME/Downloads/CorsixTH && build_files/cthanybar)"
 
 ANYBAR_PORT=1739 open -a Anybar # Different port, open and direct Anybar
 anybar () { printf %s "$1" | nc -4u -w0 localhost "${2:-1739}"; }
@@ -23,17 +24,17 @@ then anybar blue # Lua changes only
 
 elif [ "$err" != "0" ]
 then # Git/cmake/xcode/bash failed, narrow it down
-	if   ! git pull --ff-only; then anybar yellow
-	elif ! build_files/cthupdate cmake; then anybar orange
-	elif ! build_files/cthupdate make; then anybar red
-	else anybar black
-	fi
+  if   ! git pull --ff-only; then anybar yellow
+  elif ! build_files/cthupdate cmake; then anybar orange
+  elif ! build_files/cthupdate make; then anybar red
+  else anybar black
+  fi
 
 elif [ "$err" = "0" ]
 then
-	if git describe --tags --contains 'HEAD@{1}' > /dev/null 2>&1
-		then anybar cyan # Release
-	else
-		anybar green # Successful new build
-	fi
+  if git describe --tags --contains 'HEAD@{1}' > /dev/null 2>&1
+    then anybar cyan # Release
+  else
+    anybar green # Successful new build
+  fi
 fi

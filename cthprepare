@@ -1,62 +1,66 @@
-#!/bin/bash
+#!/usr/bin/env bash
 [ "$CTH_VERBOSE" ] || [ "$CI" ] && set -x
+# shellcheck disable=SC2039
 set -euo pipefail
 # Create environment for compiling CorsixTH. Recommended to run in ~/Downloads/ or where the git repository folder is.
 # Wxwidgets, Java, doxygen, alerter and anybar are not required for CorsixTH and are not checked for.
-# Expected to work with OS X 10.11+. Tested on 10.13.
+# Expected to work with macOS 10.11+. Tested on 10.13.
 # Copyright 2016- tobylane. Licensed under the MIT licence found in LICENSE.txt or online
 # Usage: cthprepare [ clean | build | cmake | make | animview [ xz | zip | folder | dmg ] [ release | upload ] ]
 
-lua=5.3 # 5.1 5.3 for lua5.1 lua5.3 (lua 5.2 not avaliable in homebrew, both or luajit not recommended)
+lua=5.3 # 5.1 5.3 for lua5.1 lua5.3 (lua 5.2 not available in homebrew, luajit not recommended)
 
-if make --v > /dev/null
-	then echo "Command Line Tools installed"
-	# GUI request to install Xcode, do nothing or install Command Line Utilities. The first run asks permissions.
-	else xcode-select --install && sudo xcodebuild -runFirstLaunch
+if make --v > /dev/null; then
+  echo "Command Line Tools installed"
+else
+  # GUI request to install Xcode, do nothing or install Command Line Utilities. The first run asks permissions.
+  xcode-select --install && sudo xcodebuild -runFirstLaunch
 fi
-if brew --prefix > /dev/null # Adapt or remove this for other package managers
-	then echo "Homebrew installed. $(brew update)"
-	else ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+if brew --prefix > /dev/null; then # Adapt or remove this for other package managers
+  echo "Homebrew installed. $(brew update)"
+else
+  ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 fi
 
-brew install lua@$lua luarocks ffmpeg freetype sdl2 cmake xz || true # wxwidgets doxygen
+brew install lua@$lua luarocks ffmpeg freetype libvorbis sdl2 cmake xz || true # wxwidgets doxygen
 brew install --with-mpg123 --with-flac --with-libmikmod --with-fluid-synth \
   https://raw.githubusercontent.com/Homebrew/homebrew-core/a9114e/Formula/sdl2_mixer.rb || true
-  # For full audio support, may need reinstall
+# For full audio support, may need reinstall
 
 dir="$(brew --prefix)" # Adjust for your package manager or manual install of homebrew
-luarocks="luarocks --lua-dir=$dir/opt/lua@$lua" # Adjust for your manual install of lua or luarocks
-if [ ! -f "$dir/lib/lua/$lua/lpeg.so" ]; then $luarocks install lpeg; fi
-if [ ! -f "$dir/lib/lua/$lua/lfs.so" ]; then $luarocks install luafilesystem; fi
-if [ ! -f "$dir/lib/lua/$lua/socket/core.so" ]; then $luarocks install luasocket --from=http://luarocks.org/dev; fi
+luarocks="luarocks --lua-dir=$dir/opt/lua@$lua install" # Adjust for your manual install of lua or luarocks
+if [ ! -f "$dir/lib/lua/$lua/lpeg.so" ]; then $luarocks lpeg; fi
+if [ ! -f "$dir/lib/lua/$lua/lfs.so" ]; then $luarocks luafilesystem; fi
+if [ ! -f "$dir/lib/lua/$lua/socket/core.so" ]; then $luarocks luasocket --from=http://luarocks.org/dev; fi
+if [ ! -f "$dir/lib/lua/$lua/ssl.lua" ]; then $luarocks luasec OPENSSL_DIR=/usr/local/opt/openssl; fi
 
-if [ -d CorsixTH/.git ]
-	then echo "CorsixTH git repository ready"
+if [ -d CorsixTH/.git ]; then
+  echo "CorsixTH git repository ready"
 else
-	git clone --branch=master https://github.com/CorsixTH/CorsixTH
+  git clone --branch=master https://github.com/CorsixTH/CorsixTH
 fi
 
 cd CorsixTH
-if ! git remote -v | grep -qie CorsixTH/CorsixTH # If git repo is a fork add upstream remote
-	then git remote add -f --tags -t master upstream https://github.com/CorsixTH/CorsixTH || true
+if ! git remote -v | grep -qie CorsixTH/CorsixTH; then # If git repo is a fork add upstream remote
+  git remote add -f --tags -t master upstream https://github.com/CorsixTH/CorsixTH || true
 fi
 
 mkdir -p build_files
 cd build_files # The build files folder is git ignored, so these scripts won't be in git status
-if [ ! -d .git ]
-	then git init > /dev/null
-	git remote add origin https://github.com/tobylane/Bin
+if [ ! -d .git ]; then
+  git init > /dev/null
+  git remote add origin https://github.com/tobylane/Bin
 fi
 git fetch --all > /dev/null
 git checkout origin/master cthupdate cthpackage cthanybar cthnotify readme.md # cthprepare
-if [ ! -d MacOS-DMG-Creator ]
-then
+if [ ! -d MacOS-DMG-Creator ]; then
   git clone https://github.com/colinjmatt/MacOS-DMG-Creator > /dev/null
   chmod +x MacOS-DMG-Creator/dmg-create
   curl -fLsS -o CthDmgBackground.png http://i.imgur.com/FKNlRIu.png
 fi
 
-if [ "$*" ] # Pass on first parameter to cthupdate (for first build) and further to cthpackage
-	then ./cthupdate "$@"
-	else echo "Prepared. Run cthupdate, with optional parameters build to force a build"
+if [ "$*" ]; then # Pass on first parameter to cthupdate (for first build) and further to cthpackage
+  ./cthupdate "$@"
+else
+  echo "Prepared. Run cthupdate, with optional parameters build to force a build"
 fi

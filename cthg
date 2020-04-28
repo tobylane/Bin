@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+set -e
+[ "$CTH_VERBOSE" ] || [ "$CI" ] && set -x
+# The all-in-one for CorsixTH-Graphics - prepare, update, package and anybar
+# Adjust the CCFLAGS for older OS X (<10.8).
+# If you need to have bison first in your PATH use: PATH="/usr/local/opt/bison/bin:$PATH"
+# Usage: cthg [ anybar ] [ prepare | clean | docs | build ] [ package ]
+
+changelog=1 # 0 1
+
+if [ "$1" = "prepare" ]
+then
+  brew update
+  brew install gettext libpng #flex bison # homebrew won't link these
+  brew cask install anybar || true
+  
+  if [ -d CorsixTH-Graphics/.git ]
+	then echo "CorsixTH-Graphics git repository ready"
+  else
+	git clone https://github.com/CorsixTH/CorsixTH-Graphics
+  fi
+  if [ -z "$2" ]; then shift; $0 "$@"; fi
+
+elif [ "$1" = "clean" ] || [ "$1" = "docs" ]
+  then make "$@"
+  
+elif [ "$1" = "anybar" ]
+then
+  ANYBAR_PORT=1740 open -a Anybar.app # Different port, open and direct a new Anybar
+  anybar () { printf %s "$1" | nc -4u -w0 localhost 1740; }
+  anybar question # In progress
+  output=$(shift && "$0" "$@")
+  err=$?
+  if [ "$output" = "No new changes." ]
+    then anybar purple # No changes
+
+  elif git diff --name-only 'HEAD@{1}' HEAD | grep -q 'AnimationEncoder'
+    then anybar blue # Non-code changes only
+
+  elif [ "$err" != "0" ]
+  then # Git/make/encoder/bash failed, narrow it down
+    if   ! git pull; then anybar yellow
+    elif ! make; then anybar orange
+    elif ! ./encoder ../ground_tiles.txt ground; then anybar red
+    else anybar black
+    fi
+  
+  elif [ "$err" = "0" ]
+    then anybar green # Successful new build
+    if [ "$output" = "New Release" ]
+      then anybar cyan # Release
+    fi
+  fi
+
+elif [ "$(git pull)" = "Already up-to-date." ] && [ "$1" != "package" ] && [ "$1" != "build" ]
+  then echo "No new changes."
+
+else
+  make CCFLAGS="--std=c++14" # >/dev/null #2>&1
+  make test || true
+
+  if git describe --tags --contains 'HEAD@{1}' > /dev/null 2>&1
+    then true # Release or release candidate
+  elif [ "$changelog" = "1" ] # Change this V number for a longer maximum list of commits
+    then git --no-pager log --no-merges -n10 --oneline --color 'HEAD@{1}..HEAD'
+  else
+    echo "Updated to $(git rev-parse --short HEAD)"
+  fi
+
+  if [ "$1" = "package" ] || [ "$2" = "package" ]
+  then
+    if git describe --tags --contains 'HEAD@{1}' > /dev/null 2>&1
+      then file=encoder-mac-$(git describe --tags --contains 'HEAD@{1}')
+    else file=encoder-mac-$(git rev-parse --short HEAD)
+    fi 
+    XZ_OPT=-7 tar cJf encoder "$file"
+    openssl dgst -sha256 "$file" #> $file.sha256 && cat $file.sha256
+    #curl --progress-bar --upload-file $file https://transfer.sh/$file | pbcopy
+  fi
+fi

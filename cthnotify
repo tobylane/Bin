@@ -1,47 +1,48 @@
-#!/bin/bash
+#!/usr/bin/env bash
 [ -n "$CTH_VERBOSE" ] && set -x
+# shellcheck disable=SC2039
 set -o pipefail
 # Announces build state with macOS Notifications via alerter
 # Copyright 2016- tobylane. Licensed under the MIT licence found in LICENSE.txt or online
 # Requires alerter: curl -fLsS https://github.com/vjeantet/alerter/releases/download/002/alerter_v002_darwin_amd64.zip | bsdtar -xvf-
 # Usage: Run, with cthupdate parameters, manually or with launchctl with the following:
-# /bin/bash -c "(cd $HOME/Downloads/CorsixTH && build_files/cthnotify)"
+# /usr/local/bin/bash -c "(cd $HOME/Downloads/CorsixTH && build_files/cthnotify)"
 
 build_files/alerter -remove cth > /dev/null
 options="build_files/alerter -dropdownLabel Action -title CorsixTH Update -group cth -appIcon CorsixTH/Icon.icns"
 gitlog="git log --no-merges --oneline -1"
-output=$(build_files/cthupdate "$@")
+output=$(build_files/cthupdate "$*")
 err=$?
 set -e
 
 if [ "$output" = "No new changes." ]
-	then action=$($gitlog --pretty=format:"%s" | $options -subtitle "No changes. Latest commit: $($gitlog --pretty=format:"%h")" -actions "Re-run,Open,Github")
+  then action=$($gitlog --pretty=format:"%s" | $options -subtitle "No changes. Latest commit: $($gitlog --pretty=format:"%h")" -actions "Re-run,Open,Github")
 
 elif [ "$err" = "127" ]; then echo "Please run from the CorsixTH folder."
 
 elif [ "$err" != "0" ]
 then if ! git pull --ff-only; then action=$(echo "A problem occurred in git" | $options -subtitle "Error" -actions "Re-run,Open in Finder,Github")
-	elif ! build_files/cthupdate cmake; then action=$(echo "A problem occurred in CMake" | $options -subtitle "Error" -actions "Re-run,Open in Finder,Github")
-	elif ! build_files/cthupdate make; then action=$(echo "A problem occurred in make" | $options -subtitle "Error" -actions "Re-run,Open in Finder,Github")
-	else action=$(echo "A problem occurred in an unknown area" | $options -subtitle "Error" -actions "Re-run,Open in Finder,Github")
-	fi
+  elif ! build_files/cthupdate cmake; then action=$(echo "A problem occurred in CMake" | $options -subtitle "Error" -actions "Re-run,Open in Finder,Github")
+  elif ! build_files/cthupdate make; then action=$(echo "A problem occurred in make" | $options -subtitle "Error" -actions "Re-run,Open in Finder,Github")
+  else action=$(echo "A problem occurred in an unknown area" | $options -subtitle "Error" -actions "Re-run,Open in Finder,Github")
+  fi
 
 elif [ "$err" = "0" ]
 then action=$($gitlog --pretty=%B | $options -subtitle "Successful build. Commit $(git rev-parse --short HEAD)" -actions "Open,Commit details,Github")
-	ver=$(git describe --tags --contains 'HEAD@{1}' 2>/dev/null || true)
-	if [ ${#ver} -lt 20 ] && [ -n "$ver" ]
-		then action=$($gitlog --pretty=format:"%s" "$ver" \
-		  | $options -subtitle "Release $ver" -actions "Open,Read changelog,Github" -group cthrelease)
-	fi
+  ver=$(git describe --tags --contains 'HEAD@{1}' 2>/dev/null || true)
+  if [ ${#ver} -lt 20 ] && [ -n "$ver" ]
+    then action=$($gitlog --pretty=format:"%s" "$ver" \
+      | $options -subtitle "Release $ver" -actions "Open,Read changelog,Github" -group cthrelease)
+  fi
 fi
 
 case $action in
-	@CONTENTCLICKED) echo "Dismissed" ;;
-	@CLOSED) echo "Dismissed" ;;
-	Re-run) build_files/cthnotify "$@" ;;
-	Open) open /Applications/CorsixTH.app ;;
-	"Open in Finder") open . ;;
-	"Commit details") $gitlog --pretty=medium --stat --date=local ;;
-	"Read changelog") open ./CorsixTH/changelog.txt ;;
-	Github) open https://github.com/CorsixTH/CorsixTH ;;
+  @CONTENTCLICKED) echo "Dismissed" ;;
+  @CLOSED) echo "Dismissed" ;;
+  Re-run) build_files/cthnotify "$*" ;;
+  Open) open /Applications/CorsixTH.app ;;
+  "Open in Finder") open . ;;
+  "Commit details") $gitlog --pretty=medium --stat --date=local ;;
+  "Read changelog") open ./CorsixTH/changelog.txt ;;
+  Github) open https://github.com/CorsixTH/CorsixTH ;;
 esac
