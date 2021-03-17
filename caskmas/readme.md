@@ -2,12 +2,13 @@
 
 Finds you a centralised app store for existing apps.  
 Looks in Homebrew cask and Mac Apple Store for what you downloaded and probably haven't updated.  
-Requires mas and trash - brew install mas trash.  
-(Formerly required Bash 4+, still a good idea generally.)  
+Also useful for moving to Apple Silicon, because very few apps are multi-architecture.  
+Optionally uses mas and trash - brew install mas trash.  
 MIT Licence.  
 Passes Shellcheck.  
 Option: install: if an app could be replaced by one from Homebrew then do it.  
-Option: list: list all apps not found in either app store.  
+Option: list: list all apps not found in either app store, and those you could install from Homebrew.
+Option: -q: Quiet mode, only lists finds (eg Clementine and GrandPerspective in the list below)
 
 ### Sample output
 
@@ -40,7 +41,7 @@ $ caskmas install
 Already up-to-date.
 Running in /Downloads
 --
-GitHub Hasty Things Done Hastily
+GitHub Hasty Things Done Hastily (223)
 ==> Downloading https://desktop.githubusercontent.com/releases/2.3.1-8a055015/GitHubDeskto
 ################################################################################### 100.0%
 ==> Verifying SHA-256 checksum for Cask 'github'.

@@ -1,69 +1,86 @@
 #!/usr/bin/env bash
-# Copyright 2019- tobylane. Licensed under the MIT licence found in LICENSE.txt or online
-# Find apps that could be replaced by versions from Homebrew cask or Mac Apple Store
-# For easier updating, not relying on internal Sparkle, etc
-# Search through folders (eg Applications), find apps, check they aren't from Apple, cask or mas
+# Copyright 2019- tobylane. Licensed under the MIT licence
+# Find apps that could be replaced by installations from Homebrew cask or Mac Apple Store
+# For easier updating or moving to Apple Silicon
+# List/update outdated installed casks with brew outdated/upgrade --casks --greedy
+# Search through folders for apps, check they aren't from Apple, homebrew-cask or Mac App Store
 # Use userignores for an external list of apps to ignore
-# Prefers Homebrew over Mac Apple Store for price, accuracy and information
-# Requires https://github.com/mas-cli/mas https://github.com/ali-rantakari/trash, brew install mas trash
-# Todo: Make quieter, increase accuracy, ignore steam/epic/etc, false negatives (eg Alfred 4, Github Desktop)
+# Prefers Homebrew over Mac Apple Store for libre & gratis, accuracy and information
+# Optionally uses https://github.com/mas-cli/mas https://github.com/ali-rantakari/trash, brew install mas trash
+# Todo: Increase accuracy (abandon mas?), ignore apps that launch through another (eg Steam apps are run.sh),
+#   false negatives (eg Alfred 4, Github Desktop), run on multiple folders at once, interactive mode
+# Can't do: Browser extensions, startup items. Make notes to do these manually
+# Usage: caskmas [ -q ] [ list ] [ /Applications ] [ install ]
 set -eao pipefail
 shopt -s nocasematch # Case insensitive comparisons
 
-# Apps you don't want updated
-ignore=("App One" "Second special app" "Steam" "CorsixTH" "AnimView" "Alfred 4" "Dropbox" "${userignores[@]}")
+if [ "$1" = "-q" ]; then shift; else say=true; fi
+if [ "$1" = "list" ]; then ulist="Unavailable:"; blist="Available from brew:"; shift; fi
+
 # Apple apps from system updates
-apple=("App Store" "Automator" "Calculator" "Calendar" "Chess" "Contacts" "DVD Player" "Dashboard"
- "Dictionary" "FaceTime" "Font Book" "GarageBand" "iBooks" "Image Capture" "iTunes" "iPhoto" "Launchpad"
- "Mail" "Maps" "Messages" "Mission Control" "Notes" "Photo Booth" "Photos" "Preview" "QuickTime Player"
- "Reminders" "Safari" "Siri" "Stickies" "System Preferences" "TextEdit" "Time Machine" "Xcode")
+apple=("App Store" "Automator" "Books" "Calculator" "Calendar" "Chess" "Contacts" "DVD Player"
+ "Dashboard" "Dictionary" "FaceTime" "Font Book" "GarageBand" "Home" "iBooks" "Image Capture"
+ "iMovie" "Install macOS Catalina" "Install macOS Big Sur" "iTunes" "iPhoto" "Launchpad" "Mail"
+ "Maps" "Messages" "Mission Control" "News" "Notes" "Photo Booth" "Photos" "Preview" "QuickTime Player"
+ "Reminders" "Safari" "Siri" "Stickies" "Stocks" "System Preferences" "TextEdit" "Time Machine" "Xcode")
+# Apps you don't want updated (plus false positives)
+# Some apps install from a slightly different cask name
+ignore=("App One" "Second special app" "CorsixTHq" "AnimView" "Alfred 4"
+ "Authy Desktop" "Github Desktop" "${userignores[@]}" "${apple[@]}")
 
 elementIn () {
   local e match="$1"
   shift
-  for e; do [[ "$e" == "$match" ]] && return 0; done
+  for e; do if [[ "$e" == "$match" ]]; then return 0; fi; done
   return 1
 }
+ec () { if [ "$1" != "q" ] || [ "$say" ]; then shift; printf '%s\n--\n' "$@"; fi; }
+bin () { trash "$@" || rm -rd "$@"; }
+italics="\e[3m"
+normal="\e[0m"
 
 brew update
 
-if [ ! -r "Brewfile" ]; # Avoid destroying a foreign or old brewfile, eg relating to a repository
-  then trap trash "$PWD/Brewfile" EXIT
-  brew bundle dump --force
-fi
-IFS=$'\n' read -r -d '' -a brewlist < <(grep Brewfile -e '^cask' | cut -d\" -f2 && printf '\0')
-IFS=$'\n' read -r -d '' -a mas < <(grep Brewfile -e '^mas' | cut -d\" -f2 && printf '\0')
+brew bundle dump --force --file=caskmaskbrewfile
+IFS=$'\n' read -r -d '' -a brewlist < <(grep caskmaskbrewfile -e '^cask' | cut -d\" -f2 && printf '\0')
+IFS=$'\n' read -r -d '' -a mas < <(grep caskmaskbrewfile -e '^mas' | cut -d\" -f2 && printf '\0')
+bin caskmaskbrewfile
 
 if [ -d "$1" ]; then cd="$1"; shift
 elif ls ./*.app >/dev/null 2>&1; then cd="$PWD"
 else cd="/Applications"
 fi
-cd "$cd" || exit; echo Running in "$cd"
+cd "$cd" || exit
+ec q "Running in $cd"
 
 for app in *.app; do
-  echo --
   name="${app:0:${#app}-4}"; brew="${name// /-}"
-  if elementIn "$name" "${ignore[@]}" || elementIn "$name" "${apple[@]}"; then echo Ignoring: "$name"
-  elif elementIn "$name" "${mas[@]}"; then echo Already installed by mas: "$name"
-  elif elementIn "$brew" "${brewlist[@]}"; then echo Already installed by brew: "$name"
+  if elementIn "$name" "${ignore[@]}"; then ec q "Ignoring: $name"
+  elif elementIn "$name" "${mas[@]}"; then ec q "Already installed by mas: $name"
+  elif elementIn "$brew" "${brewlist[@]}"; then ec q "Already installed by brew: $name"
   else
     if [[ "$(mdls -name kMDItemVersion "$app")" == *null* ]]
-      then echo "$name" "Unknown Version"
-    else echo "$name" "$(mdls -name kMDItemVersion "$app" | cut -d\" -f2)"
+      then printf '%s\n' "$name Unknown Version"
+    else printf '%s\n' "$name $(mdls -name kMDItemVersion "$app" | cut -d\" -f2)"
     fi
-    if brew cask info "$brew" >/dev/null 2>&1; then
+    if brew info --cask "$brew" >/dev/null 2>&1; then
       if [ "$1" = "install" ]; then
-        brew cask install "$brew" && if [ "$PWD" != "/Applications" ]; then trash "$app"; fi
+        bin "$app"
+        brew install --cask --force "$brew"
       else
-        brew cask info "$brew" | sed -n -e '1,2p'
+        brew info --cask "$brew" | sed -n -e '1,2p'
+        if [ -n "$blist" ]; then blist="$blist $brew,"; fi
       fi
-    elif mas search "$name" >/dev/null 2>&1; then
-      if mas info "$(mas search "$name" | head -n1 | sed 's/^ *//g' | cut -d' ' -f1)" | head -n2 \
-        && [ "$1" = "install" ]; then
-        echo -e "Use \e[3mmas lucky \"$name\"\e[0m if this is a match" # mas results are unreliable, do this manually
+    elif mas version >/dev/null && mas search "$name" >/dev/null 2>&1; then
+      if mas info "$(mas search "$name" | head -n1 | sed 's/^ *//g' | cut -d' ' -f1)" | head -n2 &&
+          [ "$1" = "install" ]; then
+        ec "Use$italics mas lucky \"$name\"$normal if this is a match"
+        # mas results are unreliable, user should use this information manually
       fi
-    else echo Not available; if [ "$1" = "list" ]; then list="$list $name,"; fi
+    else printf '%s\n' "Not available"; if [ -n "$ulist" ]; then ulist="$ulist $name,"; fi
     fi
+    printf '%s\n' "--"
   fi
-done 
-if [ "$1" = "list" ] && [ -n "$list" ]; then echo --; echo "$list"; fi
+done
+if [ "${#ulist}" -gt 12 ]; then printf '%s\n' "${ulist:0:-1}"; fi
+if [ "${#blist}" -gt 20 ]; then printf '%s\n' "${blist:0:-1}"; fi
