@@ -19,6 +19,7 @@ then
   mkdir -p ../Corsix-TH
   cd ../Corsix-TH
   rsync -a /Applications/CorsixTH.app /Applications/Animview.app .
+  # this may mess with code signing
   mv CorsixTH.app/README.txt CorsixTH.app/LICENSE.txt CorsixTH.app/CONTRIBUTING.txt CorsixTH.app/changelog.txt . || true
   target=Corsix-TH
 elif [ -d /Applications/CorsixTH.app ]
@@ -33,6 +34,7 @@ cd ..
 if [ "$1" = "xz" ] || ! [ "$1" ]
 then
   file="$folder.tar.xz"
+  # --use-compress-program=pigz ="pixz -opts"
   XZ_OPT=-7 tar cJf "$file" $target
 elif [ "$1" = "zip" ]
 then

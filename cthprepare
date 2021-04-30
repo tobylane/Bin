@@ -4,34 +4,28 @@
 set -euo pipefail
 # Create environment for compiling CorsixTH. Recommended to run in ~/Downloads/ or where the git repository folder is.
 # Wxwidgets, Java, doxygen, alerter and anybar are not required for CorsixTH and are not checked for.
-# Expected to work with macOS 10.11+. Tested on 10.13.
+# Expected to work with macOS 10.11+. Tested on 10.15.
 # Copyright 2016- tobylane. Licensed under the MIT licence found in LICENSE.txt or online
 # Usage: cthprepare [ clean | build | cmake | make | animview [ xz | zip | folder | dmg ] [ release | upload ] ]
 
-lua=5.3 # 5.1 5.3 for lua5.1 lua5.3 (lua 5.2 not available in homebrew, luajit not recommended)
+lua=5.4 # 5.1 5.3 5.4 for lua5.1 lua5.3 lua (5.2 not available in homebrew)
 
-if make --v > /dev/null; then
-  echo "Command Line Tools installed"
-else
-  # GUI request to install Xcode, do nothing or install Command Line Utilities. The first run asks permissions.
-  xcode-select --install && sudo xcodebuild -runFirstLaunch
-fi
 if brew --prefix > /dev/null; then # Adapt or remove this for other package managers
-  echo "Homebrew installed. $(brew update)"
-else
+  echo "Homebrew installed. $(brew update)"; brew doctor || true; brew outdated
+else # Homebrew now installs Command Line Tools
   ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 fi
 
 brew install lua@$lua luarocks ffmpeg freetype libvorbis sdl2 cmake xz || true # wxwidgets doxygen
 brew install --with-mpg123 --with-flac --with-libmikmod --with-fluid-synth \
-  https://raw.githubusercontent.com/Homebrew/homebrew-core/a9114e/Formula/sdl2_mixer.rb || true
-# For full audio support, may need reinstall
+  https://raw.githubusercontent.com/Homebrew/homebrew-core/a9114ef/Formula/sdl2_mixer.rb || true
+  # For full audio support an old version is used, may need to be manually run as a reinstall
 
-dir="$(brew --prefix)" # Adjust for your package manager or manual install of homebrew
-luarocks="luarocks --lua-dir=$dir/opt/lua@$lua install" # Adjust for your manual install of lua or luarocks
+dir="$(brew --prefix)"
+luarocks="luarocks --lua-version=$lua install"
 if [ ! -f "$dir/lib/lua/$lua/lpeg.so" ]; then $luarocks lpeg; fi
 if [ ! -f "$dir/lib/lua/$lua/lfs.so" ]; then $luarocks luafilesystem; fi
-if [ ! -f "$dir/lib/lua/$lua/socket/core.so" ]; then $luarocks luasocket --from=http://luarocks.org/dev; fi
+if [ ! -f "$dir/lib/lua/$lua/socket/core.so" ]; then $luarocks luasocket --from=https://luarocks.org/dev; fi
 if [ ! -f "$dir/lib/lua/$lua/ssl.lua" ]; then $luarocks luasec OPENSSL_DIR=/usr/local/opt/openssl; fi
 
 if [ -d CorsixTH/.git ]; then
